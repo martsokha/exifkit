@@ -1,0 +1,330 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": "WERTH Isabell (GER), Emilio\nStuttgart - German Masters 2019\nPreis der Firma Stihl\nInt. Dressurprüfung - CDI4*\nAufgabe: FEI Grand Prix 2009, Rev. 2014\nQualifikation zum Grand Prix Special\n16. November 2019\n© www.sportfotos-lafrentz.de/Stefan Lafrentz"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Canon"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "Canon EOS-1D X Mark II"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "PhotoShelter http://www.photoshelter.com"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2019:11:16 12:47:30"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 315,
+      "name": "Artist",
+      "value": "Stefan Lafrentz"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 33432,
+      "name": "Copyright",
+      "value": "www.sportfotos-lafrentz.de"
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 513,
+      "name": "ThumbnailOffset",
+      "value": 16576
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 514,
+      "name": "ThumbnailLength",
+      "value": 14417
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.00125
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 3.2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 3200
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34864,
+      "name": "SensitivityType",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34866,
+      "name": "RecommendedExposureIndex",
+      "value": 3200
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0231"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2019:11:16 10:14:44"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2019:11:16 10:14:44"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37377,
+      "name": "ShutterSpeedValue",
+      "value": "0.00125000016442728"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37378,
+      "name": "ApertureValue",
+      "value": 3.20000021046691
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 2.82842712474619
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 16
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 400
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37521,
+      "name": "SubSecTimeOriginal",
+      "value": 61
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37522,
+      "name": "SubSecTimeDigitized",
+      "value": 61
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 65535
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41486,
+      "name": "FocalPlaneXResolution",
+      "value": 1520
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41487,
+      "name": "FocalPlaneYResolution",
+      "value": 1520
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41488,
+      "name": "FocalPlaneResolutionUnit",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41985,
+      "name": "CustomRendered",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41986,
+      "name": "ExposureMode",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41987,
+      "name": "WhiteBalance",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41990,
+      "name": "SceneCaptureType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42033,
+      "name": "SerialNumber",
+      "value": "033011001017"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42034,
+      "name": "LensInfo",
+      "value": "400 400 undef undef"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42036,
+      "name": "LensModel",
+      "value": "EF400mm f/2.8L IS II USM"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42037,
+      "name": "LensSerialNumber",
+      "value": 3250000111
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": [
+    "IPTCDigest is not current. XMP may be out of sync"
+  ]
+}

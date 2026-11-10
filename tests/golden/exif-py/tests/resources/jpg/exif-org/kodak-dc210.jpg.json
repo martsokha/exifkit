@@ -1,0 +1,265 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": ""
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Eastman Kodak Company"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "DC210 Zoom (V05.00)"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 216
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 216
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 33432,
+      "name": "Copyright",
+      "value": ""
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 96
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 940
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 20736
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.03333333333
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0110"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2000:10:26 16:46:51"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37121,
+      "name": "ComponentsConfiguration",
+      "value": "1 2 3 0"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37122,
+      "name": "CompressedBitsPerPixel",
+      "value": "undef"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37377,
+      "name": "ShutterSpeedValue",
+      "value": 0.03125
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37378,
+      "name": "ApertureValue",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37379,
+      "name": "BrightnessValue",
+      "value": 1.5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37382,
+      "name": "SubjectDistance",
+      "value": "undef"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37384,
+      "name": "LightSource",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 4.4
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

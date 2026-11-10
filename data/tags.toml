@@ -1,0 +1,1786 @@
+# Tag table: the source of truth for `src/tag/generated.rs` and `src/tag/enums.rs`.
+# Regenerate with `cargo xtask codegen`. CI runs `cargo xtask codegen --check`.
+# Schema and conventions: docs/format.md §6 and docs/architecture.md#tag-table.
+#
+# [[enum]] fields:
+#   name      Rust type name.
+#   values    { value, variant, desc }. Every enum also gets `Other(u16)` for
+#             values the spec does not define, so `variant = "Other"` is reserved.
+#
+# [[tag]] fields (defaults in brackets):
+#   name      CIPA spec name (TIFF name for TIFF tags).
+#   alias     ExifTool name, when different.
+#   const     Override for the generated constant name.
+#   id        Tag id.
+#   ns        main | gps | interop                                     [main]
+#   ifd       primary | thumbnail | exif | gps | interop               [from ns: primary/gps/interop]
+#   types     Allowed field types, preferred first: byte ascii short long rational
+#             sbyte undefined sshort slong srational float double ifd utf8
+#   count     An integer, "any", or a list of allowed counts. Strings count the NUL.
+#   role      value | pointer | data-offset | data-length | maker-note | computed  [value]
+#   target    For role = "pointer": exif | gps | interop | sub-ifd
+#   origin    tiff | tiff-ep | exif | dng | adobe | microsoft | other  [exif]
+#   since     Exif version that introduced the tag, recorded for 2.3 and later.
+#   enum      Name of an [[enum]] the value is drawn from.
+#   personal  Can identify a person; removed by `Strip::Personal`.   [false]
+#   verified  false while a row still has to be checked against the CIPA PDF.  [true]
+#
+# Exif rows are checked against CIPA DC-008-2026 (Exif 3.1): types and counts
+# against Tables 17-20, values against the tag definitions in section 4.6.
+# "ASCII or UTF-8" in the spec is written as ["ascii", "utf8"].
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+[[enum]]
+name = "Compression"
+values = [
+    { value = 1, variant = "Uncompressed", desc = "Uncompressed" },
+    { value = 2, variant = "CcittRle", desc = "CCITT modified Huffman RLE" },
+    { value = 3, variant = "CcittT4", desc = "CCITT Group 3 fax" },
+    { value = 4, variant = "CcittT6", desc = "CCITT Group 4 fax" },
+    { value = 5, variant = "Lzw", desc = "LZW" },
+    { value = 6, variant = "Jpeg", desc = "JPEG (Exif thumbnails; old-style TIFF JPEG)" },
+    { value = 7, variant = "JpegNew", desc = "JPEG (TIFF Technical Note 2)" },
+    { value = 8, variant = "AdobeDeflate", desc = "Deflate (Adobe)" },
+    { value = 32773, variant = "PackBits", desc = "PackBits" },
+    { value = 32946, variant = "Deflate", desc = "Deflate" },
+]
+
+[[enum]]
+name = "PhotometricInterpretation"
+values = [
+    { value = 0, variant = "WhiteIsZero", desc = "White is zero" },
+    { value = 1, variant = "BlackIsZero", desc = "Black is zero" },
+    { value = 2, variant = "Rgb", desc = "RGB" },
+    { value = 3, variant = "Palette", desc = "Palette color" },
+    { value = 4, variant = "TransparencyMask", desc = "Transparency mask" },
+    { value = 5, variant = "Cmyk", desc = "CMYK" },
+    { value = 6, variant = "YCbCr", desc = "YCbCr" },
+    { value = 8, variant = "CieLab", desc = "CIE L*a*b*" },
+    { value = 32803, variant = "ColorFilterArray", desc = "Color filter array" },
+    { value = 34892, variant = "LinearRaw", desc = "Linear raw" },
+]
+
+[[enum]]
+name = "Orientation"
+values = [
+    { value = 1, variant = "Normal", desc = "Horizontal (normal)" },
+    { value = 2, variant = "MirrorHorizontal", desc = "Mirror horizontal" },
+    { value = 3, variant = "Rotate180", desc = "Rotate 180" },
+    { value = 4, variant = "MirrorVertical", desc = "Mirror vertical" },
+    { value = 5, variant = "MirrorHorizontalRotate270", desc = "Mirror horizontal and rotate 270 CW" },
+    { value = 6, variant = "Rotate90", desc = "Rotate 90 CW" },
+    { value = 7, variant = "MirrorHorizontalRotate90", desc = "Mirror horizontal and rotate 90 CW" },
+    { value = 8, variant = "Rotate270", desc = "Rotate 270 CW" },
+]
+
+[[enum]]
+name = "PlanarConfiguration"
+values = [
+    { value = 1, variant = "Chunky", desc = "Chunky (interleaved)" },
+    { value = 2, variant = "Planar", desc = "Planar" },
+]
+
+[[enum]]
+name = "ResolutionUnit"
+values = [
+    { value = 1, variant = "NoUnit", desc = "No absolute unit" },
+    { value = 2, variant = "Inch", desc = "Inch" },
+    { value = 3, variant = "Centimeter", desc = "Centimeter" },
+]
+
+[[enum]]
+name = "YCbCrPositioning"
+values = [
+    { value = 1, variant = "Centered", desc = "Centered" },
+    { value = 2, variant = "CoSited", desc = "Co-sited" },
+]
+
+[[enum]]
+name = "ExposureProgram"
+values = [
+    { value = 0, variant = "NotDefined", desc = "Not defined" },
+    { value = 1, variant = "Manual", desc = "Manual" },
+    { value = 2, variant = "Normal", desc = "Normal program" },
+    { value = 3, variant = "AperturePriority", desc = "Aperture priority" },
+    { value = 4, variant = "ShutterPriority", desc = "Shutter priority" },
+    { value = 5, variant = "Creative", desc = "Creative program (depth of field)" },
+    { value = 6, variant = "Action", desc = "Action program (fast shutter)" },
+    { value = 7, variant = "Portrait", desc = "Portrait mode" },
+    { value = 8, variant = "Landscape", desc = "Landscape mode" },
+]
+
+[[enum]]
+name = "SensitivityType"
+values = [
+    { value = 0, variant = "Unknown", desc = "Unknown" },
+    { value = 1, variant = "Sos", desc = "Standard output sensitivity" },
+    { value = 2, variant = "Rei", desc = "Recommended exposure index" },
+    { value = 3, variant = "IsoSpeed", desc = "ISO speed" },
+    { value = 4, variant = "SosRei", desc = "SOS and REI" },
+    { value = 5, variant = "SosIsoSpeed", desc = "SOS and ISO speed" },
+    { value = 6, variant = "ReiIsoSpeed", desc = "REI and ISO speed" },
+    { value = 7, variant = "SosReiIsoSpeed", desc = "SOS, REI and ISO speed" },
+]
+
+[[enum]]
+name = "MeteringMode"
+values = [
+    { value = 0, variant = "Unknown", desc = "Unknown" },
+    { value = 1, variant = "Average", desc = "Average" },
+    { value = 2, variant = "CenterWeightedAverage", desc = "Center-weighted average" },
+    { value = 3, variant = "Spot", desc = "Spot" },
+    { value = 4, variant = "MultiSpot", desc = "Multi-spot" },
+    { value = 5, variant = "Pattern", desc = "Pattern" },
+    { value = 6, variant = "Partial", desc = "Partial" },
+    { value = 255, variant = "OtherMode", desc = "Other" },
+]
+
+[[enum]]
+name = "LightSource"
+values = [
+    { value = 0, variant = "Unknown", desc = "Unknown" },
+    { value = 1, variant = "Daylight", desc = "Daylight" },
+    { value = 2, variant = "Fluorescent", desc = "Fluorescent" },
+    { value = 3, variant = "Tungsten", desc = "Tungsten (incandescent)" },
+    { value = 4, variant = "Flash", desc = "Flash" },
+    { value = 9, variant = "FineWeather", desc = "Fine weather" },
+    { value = 10, variant = "CloudyWeather", desc = "Cloudy weather" },
+    { value = 11, variant = "Shade", desc = "Shade" },
+    { value = 12, variant = "DaylightFluorescent", desc = "Daylight fluorescent (D 5700-7100K)" },
+    { value = 13, variant = "DayWhiteFluorescent", desc = "Day white fluorescent (N 4600-5500K)" },
+    { value = 14, variant = "CoolWhiteFluorescent", desc = "Cool white fluorescent (W 3800-4500K)" },
+    { value = 15, variant = "WhiteFluorescent", desc = "White fluorescent (WW 3250-3800K)" },
+    { value = 16, variant = "WarmWhiteFluorescent", desc = "Warm white fluorescent (L 2600-3250K)" },
+    { value = 17, variant = "StandardLightA", desc = "Standard light A" },
+    { value = 18, variant = "StandardLightB", desc = "Standard light B" },
+    { value = 19, variant = "StandardLightC", desc = "Standard light C" },
+    { value = 20, variant = "D55", desc = "D55" },
+    { value = 21, variant = "D65", desc = "D65" },
+    { value = 22, variant = "D75", desc = "D75" },
+    { value = 23, variant = "D50", desc = "D50" },
+    { value = 24, variant = "IsoStudioTungsten", desc = "ISO studio tungsten" },
+    # Exif 3.1.
+    { value = 25, variant = "DaylightNonFluorescent", desc = "Daylight light source (D 5700-7100K)" },
+    { value = 26, variant = "DayWhiteNonFluorescent", desc = "Day white light source (N 4600-5500K)" },
+    { value = 27, variant = "CoolWhiteNonFluorescent", desc = "Cool white light source (W 3800-4500K)" },
+    { value = 28, variant = "WhiteNonFluorescent", desc = "White light source (WW 3250-3800K)" },
+    { value = 29, variant = "WarmWhiteNonFluorescent", desc = "Warm white light source (L 2600-3250K)" },
+    { value = 30, variant = "DaylightLed", desc = "Daylight LED (D 5700-7100K)" },
+    { value = 31, variant = "DayWhiteLed", desc = "Day white LED (N 4600-5500K)" },
+    { value = 32, variant = "CoolWhiteLed", desc = "Cool white LED (W 3800-4500K)" },
+    { value = 33, variant = "WhiteLed", desc = "White LED (WW 3250-3800K)" },
+    { value = 34, variant = "WarmWhiteLed", desc = "Warm white LED (L 2600-3250K)" },
+    { value = 255, variant = "OtherSource", desc = "Other light source" },
+]
+
+[[enum]]
+name = "ColorSpace"
+values = [
+    { value = 1, variant = "Srgb", desc = "sRGB" },
+    { value = 0xFFFF, variant = "Uncalibrated", desc = "Uncalibrated" },
+]
+
+[[enum]]
+name = "SensingMethod"
+values = [
+    { value = 1, variant = "NotDefined", desc = "Not defined" },
+    { value = 2, variant = "OneChipColorArea", desc = "One-chip color area sensor" },
+    { value = 3, variant = "TwoChipColorArea", desc = "Two-chip color area sensor" },
+    { value = 4, variant = "ThreeChipColorArea", desc = "Three-chip color area sensor" },
+    { value = 5, variant = "ColorSequentialArea", desc = "Color sequential area sensor" },
+    { value = 7, variant = "Trilinear", desc = "Trilinear sensor" },
+    { value = 8, variant = "ColorSequentialLinear", desc = "Color sequential linear sensor" },
+]
+
+[[enum]]
+name = "FileSource"
+values = [
+    { value = 0, variant = "Others", desc = "Others" },
+    { value = 1, variant = "ScannerTransparent", desc = "Scanner of transparent type" },
+    { value = 2, variant = "ScannerReflex", desc = "Scanner of reflex type" },
+    { value = 3, variant = "Dsc", desc = "Digital still camera" },
+]
+
+[[enum]]
+name = "SceneType"
+values = [
+    { value = 1, variant = "DirectlyPhotographed", desc = "Directly photographed" },
+]
+
+[[enum]]
+name = "CustomRendered"
+values = [
+    { value = 0, variant = "Normal", desc = "Normal process" },
+    { value = 1, variant = "Custom", desc = "Custom process" },
+]
+
+[[enum]]
+name = "ExposureMode"
+values = [
+    { value = 0, variant = "Auto", desc = "Auto exposure" },
+    { value = 1, variant = "Manual", desc = "Manual exposure" },
+    { value = 2, variant = "AutoBracket", desc = "Auto bracket" },
+]
+
+[[enum]]
+name = "WhiteBalance"
+values = [
+    { value = 0, variant = "Auto", desc = "Auto white balance" },
+    { value = 1, variant = "Manual", desc = "Manual white balance" },
+]
+
+[[enum]]
+name = "SceneCaptureType"
+values = [
+    { value = 0, variant = "Standard", desc = "Standard" },
+    { value = 1, variant = "Landscape", desc = "Landscape" },
+    { value = 2, variant = "Portrait", desc = "Portrait" },
+    { value = 3, variant = "Night", desc = "Night scene" },
+]
+
+[[enum]]
+name = "GainControl"
+values = [
+    { value = 0, variant = "Off", desc = "None" },
+    { value = 1, variant = "LowGainUp", desc = "Low gain up" },
+    { value = 2, variant = "HighGainUp", desc = "High gain up" },
+    { value = 3, variant = "LowGainDown", desc = "Low gain down" },
+    { value = 4, variant = "HighGainDown", desc = "High gain down" },
+]
+
+[[enum]]
+name = "Contrast"
+values = [
+    { value = 0, variant = "Normal", desc = "Normal" },
+    { value = 1, variant = "Soft", desc = "Soft" },
+    { value = 2, variant = "Hard", desc = "Hard" },
+]
+
+[[enum]]
+name = "Saturation"
+values = [
+    { value = 0, variant = "Normal", desc = "Normal" },
+    { value = 1, variant = "Low", desc = "Low saturation" },
+    { value = 2, variant = "High", desc = "High saturation" },
+]
+
+[[enum]]
+name = "Sharpness"
+values = [
+    { value = 0, variant = "Normal", desc = "Normal" },
+    { value = 1, variant = "Soft", desc = "Soft" },
+    { value = 2, variant = "Hard", desc = "Hard" },
+]
+
+[[enum]]
+name = "SubjectDistanceRange"
+values = [
+    { value = 0, variant = "Unknown", desc = "Unknown" },
+    { value = 1, variant = "Macro", desc = "Macro" },
+    { value = 2, variant = "Close", desc = "Close view" },
+    { value = 3, variant = "Distant", desc = "Distant view" },
+]
+
+[[enum]]
+name = "Correction"
+values = [
+    { value = 0, variant = "NotApplied", desc = "Not applied" },
+    { value = 1, variant = "Applied", desc = "Applied" },
+]
+
+[[enum]]
+name = "NoiseReduction"
+values = [
+    { value = 0, variant = "NotApplied", desc = "Not applied" },
+    { value = 1, variant = "Low", desc = "Low strength" },
+    { value = 2, variant = "Normal", desc = "Normal strength" },
+    { value = 3, variant = "High", desc = "High strength" },
+]
+
+[[enum]]
+name = "AltitudeRef"
+values = [
+    { value = 0, variant = "AboveEllipsoid", desc = "Positive ellipsoidal height (at or above the ellipsoidal surface)" },
+    { value = 1, variant = "BelowEllipsoid", desc = "Negative ellipsoidal height (below the ellipsoidal surface)" },
+    { value = 2, variant = "AboveSeaLevel", desc = "Positive sea level value (at or above sea level)" },
+    { value = 3, variant = "BelowSeaLevel", desc = "Negative sea level value (below sea level)" },
+]
+
+[[enum]]
+name = "CompositeImage"
+values = [
+    { value = 0, variant = "Unknown", desc = "Unknown" },
+    { value = 1, variant = "NotComposite", desc = "Not a composite image" },
+    { value = 2, variant = "GeneralComposite", desc = "General composite image" },
+    { value = 3, variant = "CapturedWhenShooting", desc = "Composite image captured when shooting" },
+]
+
+# ---------------------------------------------------------------------------
+# IFD0 / IFD1 (TIFF tags and other tags placed there)
+# ---------------------------------------------------------------------------
+
+[[tag]]
+name = "NewSubfileType"
+id = 0x00FE
+types = ["long"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "ImageWidth"
+id = 0x0100
+types = ["long", "short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "ImageLength"
+alias = "ImageHeight"
+id = 0x0101
+types = ["long", "short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "BitsPerSample"
+id = 0x0102
+types = ["short"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "Compression"
+id = 0x0103
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "Compression"
+
+[[tag]]
+name = "PhotometricInterpretation"
+id = 0x0106
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "PhotometricInterpretation"
+
+[[tag]]
+name = "DocumentName"
+id = 0x010D
+types = ["ascii"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "ImageDescription"
+id = 0x010E
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "Make"
+id = 0x010F
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "Model"
+id = 0x0110
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "StripOffsets"
+id = 0x0111
+types = ["long", "short"]
+count = "any"
+role = "data-offset"
+origin = "tiff"
+
+[[tag]]
+name = "Orientation"
+id = 0x0112
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "Orientation"
+
+[[tag]]
+name = "SamplesPerPixel"
+id = 0x0115
+types = ["short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "RowsPerStrip"
+id = 0x0116
+types = ["long", "short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "StripByteCounts"
+id = 0x0117
+types = ["long", "short"]
+count = "any"
+role = "data-length"
+origin = "tiff"
+
+[[tag]]
+name = "XResolution"
+id = 0x011A
+types = ["rational"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "YResolution"
+id = 0x011B
+types = ["rational"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "PlanarConfiguration"
+id = 0x011C
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "PlanarConfiguration"
+
+[[tag]]
+name = "ResolutionUnit"
+id = 0x0128
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "ResolutionUnit"
+
+[[tag]]
+name = "TransferFunction"
+id = 0x012D
+types = ["short"]
+count = 768
+origin = "tiff"
+
+[[tag]]
+name = "Software"
+id = 0x0131
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "DateTime"
+alias = "ModifyDate"
+id = 0x0132
+types = ["ascii"]
+count = 20
+origin = "tiff"
+
+[[tag]]
+name = "Artist"
+id = 0x013B
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+personal = true
+
+[[tag]]
+name = "HostComputer"
+id = 0x013C
+types = ["ascii"]
+count = "any"
+origin = "tiff"
+personal = true
+
+[[tag]]
+name = "WhitePoint"
+id = 0x013E
+types = ["rational"]
+count = 2
+origin = "tiff"
+
+[[tag]]
+name = "PrimaryChromaticities"
+id = 0x013F
+types = ["rational"]
+count = 6
+origin = "tiff"
+
+[[tag]]
+name = "ColorMap"
+id = 0x0140
+types = ["short"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "TileWidth"
+id = 0x0142
+types = ["long", "short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "TileLength"
+id = 0x0143
+types = ["long", "short"]
+count = 1
+origin = "tiff"
+
+[[tag]]
+name = "TileOffsets"
+id = 0x0144
+types = ["long"]
+count = "any"
+role = "data-offset"
+origin = "tiff"
+
+[[tag]]
+name = "TileByteCounts"
+id = 0x0145
+types = ["long", "short"]
+count = "any"
+role = "data-length"
+origin = "tiff"
+
+[[tag]]
+name = "SubIFDs"
+const = "SUB_IFDS"
+id = 0x014A
+types = ["long", "ifd"]
+count = "any"
+role = "pointer"
+target = "sub-ifd"
+origin = "tiff-ep"
+
+[[tag]]
+name = "JPEGInterchangeFormat"
+alias = "ThumbnailOffset"
+const = "JPEG_INTERCHANGE_FORMAT"
+id = 0x0201
+ifd = "thumbnail"
+types = ["long"]
+count = 1
+role = "data-offset"
+origin = "tiff"
+
+[[tag]]
+name = "JPEGInterchangeFormatLength"
+alias = "ThumbnailLength"
+const = "JPEG_INTERCHANGE_FORMAT_LENGTH"
+id = 0x0202
+ifd = "thumbnail"
+types = ["long"]
+count = 1
+role = "data-length"
+origin = "tiff"
+
+[[tag]]
+name = "YCbCrCoefficients"
+id = 0x0211
+types = ["rational"]
+count = 3
+origin = "tiff"
+
+[[tag]]
+name = "YCbCrSubSampling"
+id = 0x0212
+types = ["short"]
+count = 2
+origin = "tiff"
+
+[[tag]]
+name = "YCbCrPositioning"
+id = 0x0213
+types = ["short"]
+count = 1
+origin = "tiff"
+enum = "YCbCrPositioning"
+
+[[tag]]
+name = "ReferenceBlackWhite"
+id = 0x0214
+types = ["rational"]
+count = 6
+origin = "tiff"
+
+[[tag]]
+name = "XMLPacket"
+alias = "ApplicationNotes"
+const = "XML_PACKET"
+id = 0x02BC
+types = ["byte", "undefined"]
+count = "any"
+origin = "adobe"
+
+[[tag]]
+name = "Rating"
+id = 0x4746
+types = ["short"]
+count = 1
+origin = "microsoft"
+
+[[tag]]
+name = "RatingPercent"
+id = 0x4749
+types = ["short"]
+count = 1
+origin = "microsoft"
+
+[[tag]]
+name = "Copyright"
+id = 0x8298
+types = ["ascii", "utf8"]
+count = "any"
+origin = "tiff"
+
+[[tag]]
+name = "IPTCNAA"
+alias = "IPTC-NAA"
+const = "IPTC_NAA"
+id = 0x83BB
+types = ["undefined", "long", "byte"]
+count = "any"
+origin = "tiff-ep"
+
+[[tag]]
+name = "ExifIFDPointer"
+alias = "ExifOffset"
+const = "EXIF_IFD_POINTER"
+id = 0x8769
+types = ["long", "ifd"]
+count = 1
+role = "pointer"
+target = "exif"
+
+[[tag]]
+name = "InterColorProfile"
+alias = "ICC_Profile"
+id = 0x8773
+types = ["undefined"]
+count = "any"
+origin = "tiff-ep"
+
+[[tag]]
+name = "GPSInfoIFDPointer"
+alias = "GPSInfo"
+const = "GPS_INFO_IFD_POINTER"
+id = 0x8825
+types = ["long", "ifd"]
+count = 1
+role = "pointer"
+target = "gps"
+
+[[tag]]
+name = "XPTitle"
+const = "XP_TITLE"
+id = 0x9C9B
+types = ["byte"]
+count = "any"
+origin = "microsoft"
+
+[[tag]]
+name = "XPComment"
+const = "XP_COMMENT"
+id = 0x9C9C
+types = ["byte"]
+count = "any"
+origin = "microsoft"
+
+[[tag]]
+name = "XPAuthor"
+const = "XP_AUTHOR"
+id = 0x9C9D
+types = ["byte"]
+count = "any"
+origin = "microsoft"
+personal = true
+
+[[tag]]
+name = "XPKeywords"
+const = "XP_KEYWORDS"
+id = 0x9C9E
+types = ["byte"]
+count = "any"
+origin = "microsoft"
+
+[[tag]]
+name = "XPSubject"
+const = "XP_SUBJECT"
+id = 0x9C9F
+types = ["byte"]
+count = "any"
+origin = "microsoft"
+
+[[tag]]
+name = "Padding"
+id = 0xEA1C
+types = ["undefined"]
+count = "any"
+origin = "microsoft"
+
+# ---------------------------------------------------------------------------
+# Exif IFD
+# ---------------------------------------------------------------------------
+
+[[tag]]
+name = "ExposureTime"
+id = 0x829A
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "FNumber"
+id = 0x829D
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "ExposureProgram"
+id = 0x8822
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "ExposureProgram"
+
+[[tag]]
+name = "SpectralSensitivity"
+id = 0x8824
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "PhotographicSensitivity"
+alias = "ISO"
+id = 0x8827
+ifd = "exif"
+types = ["short"]
+count = "any"
+
+[[tag]]
+name = "OECF"
+alias = "Opto-ElectricConvFactor"
+const = "OECF"
+id = 0x8828
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "SensitivityType"
+id = 0x8830
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "2.3"
+enum = "SensitivityType"
+
+[[tag]]
+name = "StandardOutputSensitivity"
+id = 0x8831
+ifd = "exif"
+types = ["long"]
+count = 1
+since = "2.3"
+
+[[tag]]
+name = "RecommendedExposureIndex"
+id = 0x8832
+ifd = "exif"
+types = ["long"]
+count = 1
+since = "2.3"
+
+[[tag]]
+name = "ISOSpeed"
+const = "ISO_SPEED"
+id = 0x8833
+ifd = "exif"
+types = ["long"]
+count = 1
+since = "2.3"
+
+[[tag]]
+name = "ISOSpeedLatitudeyyy"
+const = "ISO_SPEED_LATITUDE_YYY"
+id = 0x8834
+ifd = "exif"
+types = ["long"]
+count = 1
+since = "2.3"
+
+[[tag]]
+name = "ISOSpeedLatitudezzz"
+const = "ISO_SPEED_LATITUDE_ZZZ"
+id = 0x8835
+ifd = "exif"
+types = ["long"]
+count = 1
+since = "2.3"
+
+[[tag]]
+name = "ExifVersion"
+id = 0x9000
+ifd = "exif"
+types = ["undefined"]
+count = 4
+
+[[tag]]
+name = "DateTimeOriginal"
+id = 0x9003
+ifd = "exif"
+types = ["ascii"]
+count = 20
+
+[[tag]]
+name = "DateTimeDigitized"
+alias = "CreateDate"
+id = 0x9004
+ifd = "exif"
+types = ["ascii"]
+count = 20
+
+[[tag]]
+name = "OffsetTime"
+id = 0x9010
+ifd = "exif"
+types = ["ascii"]
+count = 7
+since = "2.31"
+
+[[tag]]
+name = "OffsetTimeOriginal"
+id = 0x9011
+ifd = "exif"
+types = ["ascii"]
+count = 7
+since = "2.31"
+
+[[tag]]
+name = "OffsetTimeDigitized"
+id = 0x9012
+ifd = "exif"
+types = ["ascii"]
+count = 7
+since = "2.31"
+
+[[tag]]
+name = "ComponentsConfiguration"
+id = 0x9101
+ifd = "exif"
+types = ["undefined"]
+count = 4
+
+[[tag]]
+name = "CompressedBitsPerPixel"
+id = 0x9102
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "ShutterSpeedValue"
+id = 0x9201
+ifd = "exif"
+types = ["srational"]
+count = 1
+
+[[tag]]
+name = "ApertureValue"
+id = 0x9202
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "BrightnessValue"
+id = 0x9203
+ifd = "exif"
+types = ["srational"]
+count = 1
+
+[[tag]]
+name = "ExposureBiasValue"
+alias = "ExposureCompensation"
+id = 0x9204
+ifd = "exif"
+types = ["srational"]
+count = 1
+
+[[tag]]
+name = "MaxApertureValue"
+id = 0x9205
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "SubjectDistance"
+id = 0x9206
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "MeteringMode"
+id = 0x9207
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "MeteringMode"
+
+[[tag]]
+name = "LightSource"
+id = 0x9208
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "LightSource"
+
+[[tag]]
+name = "Flash"
+id = 0x9209
+ifd = "exif"
+types = ["short"]
+count = 1
+
+[[tag]]
+name = "FocalLength"
+id = 0x920A
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "SubjectArea"
+id = 0x9214
+ifd = "exif"
+types = ["short"]
+count = [2, 3, 4]
+
+[[tag]]
+name = "MakerNote"
+id = 0x927C
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+role = "maker-note"
+
+[[tag]]
+name = "UserComment"
+id = 0x9286
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "LearningOptOutIn"
+id = 0x9287
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+since = "3.1"
+
+[[tag]]
+name = "SubSecTime"
+id = 0x9290
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "SubSecTimeOriginal"
+id = 0x9291
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "SubSecTimeDigitized"
+id = 0x9292
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "Temperature"
+alias = "AmbientTemperature"
+id = 0x9400
+ifd = "exif"
+types = ["srational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "Humidity"
+id = 0x9401
+ifd = "exif"
+types = ["rational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "Pressure"
+id = 0x9402
+ifd = "exif"
+types = ["rational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "WaterDepth"
+id = 0x9403
+ifd = "exif"
+types = ["srational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "Acceleration"
+id = 0x9404
+ifd = "exif"
+types = ["rational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "CameraElevationAngle"
+id = 0x9405
+ifd = "exif"
+types = ["srational"]
+count = 1
+since = "2.31"
+
+[[tag]]
+name = "FlashpixVersion"
+id = 0xA000
+ifd = "exif"
+types = ["undefined"]
+count = 4
+
+[[tag]]
+name = "ColorSpace"
+id = 0xA001
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "ColorSpace"
+
+[[tag]]
+name = "PixelXDimension"
+alias = "ExifImageWidth"
+id = 0xA002
+ifd = "exif"
+types = ["long", "short"]
+count = 1
+
+[[tag]]
+name = "PixelYDimension"
+alias = "ExifImageHeight"
+id = 0xA003
+ifd = "exif"
+types = ["long", "short"]
+count = 1
+
+[[tag]]
+name = "RelatedSoundFile"
+id = 0xA004
+ifd = "exif"
+types = ["ascii"]
+count = 13
+
+[[tag]]
+name = "InteroperabilityIFDPointer"
+alias = "InteropOffset"
+const = "INTEROPERABILITY_IFD_POINTER"
+id = 0xA005
+ifd = "exif"
+types = ["long", "ifd"]
+count = 1
+role = "pointer"
+target = "interop"
+
+[[tag]]
+name = "FlashEnergy"
+id = 0xA20B
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "SpatialFrequencyResponse"
+id = 0xA20C
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "FocalPlaneXResolution"
+id = 0xA20E
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "FocalPlaneYResolution"
+id = 0xA20F
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "FocalPlaneResolutionUnit"
+id = 0xA210
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "ResolutionUnit"
+
+[[tag]]
+name = "SubjectLocation"
+id = 0xA214
+ifd = "exif"
+types = ["short"]
+count = 2
+
+[[tag]]
+name = "ExposureIndex"
+id = 0xA215
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "SensingMethod"
+id = 0xA217
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "SensingMethod"
+
+[[tag]]
+name = "FileSource"
+id = 0xA300
+ifd = "exif"
+types = ["undefined"]
+count = 1
+enum = "FileSource"
+
+[[tag]]
+name = "SceneType"
+id = 0xA301
+ifd = "exif"
+types = ["undefined"]
+count = 1
+enum = "SceneType"
+
+[[tag]]
+name = "CFAPattern"
+const = "CFA_PATTERN"
+id = 0xA302
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "CustomRendered"
+id = 0xA401
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "CustomRendered"
+
+[[tag]]
+name = "ExposureMode"
+id = 0xA402
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "ExposureMode"
+
+[[tag]]
+name = "WhiteBalance"
+id = 0xA403
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "WhiteBalance"
+
+[[tag]]
+name = "DigitalZoomRatio"
+id = 0xA404
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "FocalLengthIn35mmFilm"
+alias = "FocalLengthIn35mmFormat"
+const = "FOCAL_LENGTH_IN_35MM_FILM"
+id = 0xA405
+ifd = "exif"
+types = ["short"]
+count = 1
+
+[[tag]]
+name = "SceneCaptureType"
+id = 0xA406
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "SceneCaptureType"
+
+# Table 18 lists RATIONAL; the definition (section 4.6.6.7.41) says SHORT. SHORT is right.
+[[tag]]
+name = "GainControl"
+id = 0xA407
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "GainControl"
+
+[[tag]]
+name = "Contrast"
+id = 0xA408
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "Contrast"
+
+[[tag]]
+name = "Saturation"
+id = 0xA409
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "Saturation"
+
+[[tag]]
+name = "Sharpness"
+id = 0xA40A
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "Sharpness"
+
+[[tag]]
+name = "DeviceSettingDescription"
+id = 0xA40B
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "SubjectDistanceRange"
+id = 0xA40C
+ifd = "exif"
+types = ["short"]
+count = 1
+enum = "SubjectDistanceRange"
+
+[[tag]]
+name = "DevelopmentType"
+id = 0xA40D
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "3.1"
+
+[[tag]]
+name = "DevelopmentTypeDescription"
+id = 0xA40E
+ifd = "exif"
+types = ["utf8"]
+count = "any"
+since = "3.1"
+
+[[tag]]
+name = "DistortionCorrection"
+id = 0xA40F
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "3.1"
+enum = "Correction"
+
+[[tag]]
+name = "ChromaticAberrationCorrection"
+id = 0xA410
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "3.1"
+enum = "Correction"
+
+[[tag]]
+name = "ShadingCorrection"
+id = 0xA411
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "3.1"
+enum = "Correction"
+
+[[tag]]
+name = "NoiseReduction"
+id = 0xA412
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "3.1"
+enum = "NoiseReduction"
+
+[[tag]]
+name = "ImageUniqueID"
+const = "IMAGE_UNIQUE_ID"
+id = 0xA420
+ifd = "exif"
+types = ["ascii"]
+count = 33
+
+[[tag]]
+name = "CameraOwnerName"
+alias = "OwnerName"
+id = 0xA430
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "2.3"
+personal = true
+
+[[tag]]
+name = "BodySerialNumber"
+alias = "SerialNumber"
+id = 0xA431
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+since = "2.3"
+personal = true
+
+[[tag]]
+name = "LensSpecification"
+alias = "LensInfo"
+id = 0xA432
+ifd = "exif"
+types = ["rational"]
+count = 4
+since = "2.3"
+
+[[tag]]
+name = "LensMake"
+id = 0xA433
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "2.3"
+
+[[tag]]
+name = "LensModel"
+id = 0xA434
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "2.3"
+
+[[tag]]
+name = "LensSerialNumber"
+id = 0xA435
+ifd = "exif"
+types = ["ascii"]
+count = "any"
+since = "2.3"
+personal = true
+
+[[tag]]
+name = "ImageTitle"
+id = 0xA436
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+
+[[tag]]
+name = "Photographer"
+id = 0xA437
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+personal = true
+
+[[tag]]
+name = "ImageEditor"
+id = 0xA438
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+personal = true
+
+[[tag]]
+name = "CameraFirmware"
+id = 0xA439
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+
+[[tag]]
+name = "RAWDevelopingSoftware"
+const = "RAW_DEVELOPING_SOFTWARE"
+id = 0xA43A
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+
+[[tag]]
+name = "ImageEditingSoftware"
+id = 0xA43B
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+
+[[tag]]
+name = "MetadataEditingSoftware"
+id = 0xA43C
+ifd = "exif"
+types = ["ascii", "utf8"]
+count = "any"
+since = "3.0"
+
+[[tag]]
+name = "CompositeImage"
+id = 0xA460
+ifd = "exif"
+types = ["short"]
+count = 1
+since = "2.32"
+enum = "CompositeImage"
+
+[[tag]]
+name = "SourceImageNumberOfCompositeImage"
+alias = "CompositeImageCount"
+id = 0xA461
+ifd = "exif"
+types = ["short"]
+count = 2
+since = "2.32"
+
+[[tag]]
+name = "SourceExposureTimesOfCompositeImage"
+alias = "CompositeImageExposureTimes"
+id = 0xA462
+ifd = "exif"
+types = ["undefined"]
+count = "any"
+since = "2.32"
+
+[[tag]]
+name = "Gamma"
+id = 0xA500
+ifd = "exif"
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "OffsetSchema"
+id = 0xEA1D
+ifd = "exif"
+types = ["slong"]
+count = 1
+role = "computed"
+origin = "microsoft"
+
+# ---------------------------------------------------------------------------
+# GPS IFD
+# ---------------------------------------------------------------------------
+
+[[tag]]
+name = "GPSVersionID"
+const = "GPS_VERSION_ID"
+ns = "gps"
+id = 0x0000
+types = ["byte"]
+count = 4
+
+[[tag]]
+name = "GPSLatitudeRef"
+ns = "gps"
+id = 0x0001
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSLatitude"
+ns = "gps"
+id = 0x0002
+types = ["rational"]
+count = 3
+
+[[tag]]
+name = "GPSLongitudeRef"
+ns = "gps"
+id = 0x0003
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSLongitude"
+ns = "gps"
+id = 0x0004
+types = ["rational"]
+count = 3
+
+[[tag]]
+name = "GPSAltitudeRef"
+ns = "gps"
+id = 0x0005
+types = ["byte"]
+count = 1
+# Exif 3.0 redefined 0/1 as ellipsoidal height; before 3.0 they meant sea level.
+enum = "AltitudeRef"
+
+[[tag]]
+name = "GPSAltitude"
+ns = "gps"
+id = 0x0006
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSTimeStamp"
+ns = "gps"
+id = 0x0007
+types = ["rational"]
+count = 3
+
+[[tag]]
+name = "GPSSatellites"
+ns = "gps"
+id = 0x0008
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "GPSStatus"
+ns = "gps"
+id = 0x0009
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSMeasureMode"
+ns = "gps"
+id = 0x000A
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSDOP"
+const = "GPS_DOP"
+ns = "gps"
+id = 0x000B
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSSpeedRef"
+ns = "gps"
+id = 0x000C
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSSpeed"
+ns = "gps"
+id = 0x000D
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSTrackRef"
+ns = "gps"
+id = 0x000E
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSTrack"
+ns = "gps"
+id = 0x000F
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSImgDirectionRef"
+ns = "gps"
+id = 0x0010
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSImgDirection"
+ns = "gps"
+id = 0x0011
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSMapDatum"
+ns = "gps"
+id = 0x0012
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "GPSDestLatitudeRef"
+ns = "gps"
+id = 0x0013
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSDestLatitude"
+ns = "gps"
+id = 0x0014
+types = ["rational"]
+count = 3
+
+[[tag]]
+name = "GPSDestLongitudeRef"
+ns = "gps"
+id = 0x0015
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSDestLongitude"
+ns = "gps"
+id = 0x0016
+types = ["rational"]
+count = 3
+
+[[tag]]
+name = "GPSDestBearingRef"
+ns = "gps"
+id = 0x0017
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSDestBearing"
+ns = "gps"
+id = 0x0018
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSDestDistanceRef"
+ns = "gps"
+id = 0x0019
+types = ["ascii"]
+count = 2
+
+[[tag]]
+name = "GPSDestDistance"
+ns = "gps"
+id = 0x001A
+types = ["rational"]
+count = 1
+
+[[tag]]
+name = "GPSProcessingMethod"
+ns = "gps"
+id = 0x001B
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "GPSAreaInformation"
+ns = "gps"
+id = 0x001C
+types = ["undefined"]
+count = "any"
+
+[[tag]]
+name = "GPSDateStamp"
+ns = "gps"
+id = 0x001D
+types = ["ascii"]
+count = 11
+
+[[tag]]
+name = "GPSDifferential"
+ns = "gps"
+id = 0x001E
+types = ["short"]
+count = 1
+
+[[tag]]
+name = "GPSHPositioningError"
+const = "GPS_H_POSITIONING_ERROR"
+ns = "gps"
+id = 0x001F
+types = ["rational"]
+count = 1
+since = "2.3"
+
+# ---------------------------------------------------------------------------
+# Interoperability IFD
+# ---------------------------------------------------------------------------
+
+[[tag]]
+name = "InteroperabilityIndex"
+alias = "InteropIndex"
+ns = "interop"
+id = 0x0001
+types = ["ascii"]
+count = "any"
+
+[[tag]]
+name = "InteroperabilityVersion"
+alias = "InteropVersion"
+ns = "interop"
+id = 0x0002
+types = ["undefined"]
+count = 4
+
+[[tag]]
+name = "RelatedImageFileFormat"
+ns = "interop"
+id = 0x1000
+types = ["ascii"]
+count = "any"
+origin = "other"
+
+[[tag]]
+name = "RelatedImageWidth"
+ns = "interop"
+id = 0x1001
+types = ["long", "short"]
+count = 1
+origin = "other"
+
+[[tag]]
+name = "RelatedImageLength"
+alias = "RelatedImageHeight"
+ns = "interop"
+id = 0x1002
+types = ["long", "short"]
+count = 1
+origin = "other"
