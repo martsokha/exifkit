@@ -1,0 +1,69 @@
+[package]
+name = "exifkit"
+version = "0.1.0"
+authors = ["Oleh Martsokha <o.martsokha@gmail.com>"]
+
+edition = "2024"
+rust-version = "1.95"
+
+description = "Read, edit and write Exif metadata in JPEG, TIFF, PNG, WebP, HEIF/AVIF and JPEG XL."
+license = "MIT"
+keywords = ["exif", "metadata", "image", "photo", "tiff"]
+categories = ["multimedia::images", "parser-implementations", "encoding", "no-std"]
+
+repository = "https://github.com/martsokha/exifkit"
+documentation = "https://docs.rs/exifkit"
+
+include = ["src/**", "Cargo.toml", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[workspace]
+members = ["xtask"]
+# cargo-fuzz needs nightly and its own lockfile; see fuzz/README.md.
+exclude = ["fuzz"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = ["std", "jpeg", "tiff", "png", "webp", "heif", "jxl"]
+
+# `Read + Seek` APIs and `std::error::Error`. Without it the crate is `no_std + alloc`.
+std = []
+
+# Containers.
+jpeg = []
+tiff = []
+png = []
+webp = []
+heif = []
+jxl = []
+
+# Legacy PNG `zTXt`/`iTXt` "Raw profile type exif" chunks (needs inflate).
+png-legacy = ["png"]
+# Brotli-compressed (`brob`) JPEG XL Exif boxes.
+jxl-brob = ["jxl"]
+
+# Integrations.
+serde = []
+jiff = []
+chrono = []
+
+[dependencies]
+# Optional dependencies are added as the features above are implemented
+# (see docs/architecture.md#cargo-features). The default build stays dependency-free.
+
+[dev-dependencies]
+serde_json = { version = "1.0" }
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+# Input-derived data must never panic (docs/architecture.md#safety-model).
+indexing_slicing = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"

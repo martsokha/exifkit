@@ -1,0 +1,363 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": "El cielo sobre Berlin (Heaven above Berlin)"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Canon"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "Canon PowerShot G9"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 350
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 350
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "GIMP 2.6.11"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2011:08:25 15:09:41"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 513,
+      "name": "ThumbnailOffset",
+      "value": 1236
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 514,
+      "name": "ThumbnailLength",
+      "value": 3881
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.0008
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 80
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0220"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2008:05:25 19:31:26"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2008:05:25 19:31:26"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37121,
+      "name": "ComponentsConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37122,
+      "name": "CompressedBitsPerPixel",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37377,
+      "name": "ShutterSpeedValue",
+      "value": "0.000803591542067366"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37378,
+      "name": "ApertureValue",
+      "value": 4.99999967114547
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 2.79795934507662
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 24
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 7.4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37510,
+      "name": "UserComment",
+      "value": ""
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37520,
+      "name": "SubSecTime",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37521,
+      "name": "SubSecTimeOriginal",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37522,
+      "name": "SubSecTimeDigitized",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40960,
+      "name": "FlashpixVersion",
+      "value": "0100"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 2560
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 1600
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41486,
+      "name": "FocalPlaneXResolution",
+      "value": 13745.70447
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41487,
+      "name": "FocalPlaneYResolution",
+      "value": 13698.63014
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41488,
+      "name": "FocalPlaneResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41495,
+      "name": "SensingMethod",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41728,
+      "name": "FileSource",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41985,
+      "name": "CustomRendered",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41986,
+      "name": "ExposureMode",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41987,
+      "name": "WhiteBalance",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41988,
+      "name": "DigitalZoomRatio",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41990,
+      "name": "SceneCaptureType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "InteropIFD",
+      "id": 1,
+      "name": "InteropIndex",
+      "value": "R98"
+    },
+    {
+      "copy": 0,
+      "group": "InteropIFD",
+      "id": 2,
+      "name": "InteropVersion",
+      "value": "0100"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

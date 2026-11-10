@@ -1,0 +1,85 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "GIMP 2.4.5"
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 513,
+      "name": "ThumbnailOffset",
+      "value": 346
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 514,
+      "name": "ThumbnailLength",
+      "value": 2251
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37510,
+      "name": "UserComment",
+      "value": "a5cb01550dbb9a6bf732f87e413f6e231cc4581e6a5be800fb0871dce0760cd5"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 65535
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 88
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 100
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": [
+    "[minor] Unrecognized MakerNotes"
+  ]
+}

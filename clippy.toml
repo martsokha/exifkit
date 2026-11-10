@@ -1,0 +1,5 @@
+# Tests may index, unwrap and panic; library code may not (docs/architecture.md#safety-model).
+allow-indexing-slicing-in-tests = true
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

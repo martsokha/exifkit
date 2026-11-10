@@ -1,0 +1,99 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 162
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 150
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 259,
+      "name": "Compression",
+      "value": 7
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 273,
+      "name": "PreviewImageStart",
+      "value": "270 1530 3142 3287 4470 6242 6387 7033 7752 7897 9469 11071"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 64
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 279,
+      "name": "PreviewImageLength",
+      "value": "1260 1612 145 1183 1772 145 646 719 145 1572 1602 188"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 338,
+      "name": "ExtraSamples",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 339,
+      "name": "SampleFormat",
+      "value": "1 1 1 1"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 347,
+      "name": "JPEGTables",
+      "value": "(Binary data 289 bytes, use -b option to extract)"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": [
+    "RawConv PreviewImage: Argument \"1260 1612 145 1183 1772 145 646 719 145 1572 1602 188\" isn't numeric in addition (+)"
+  ]
+}

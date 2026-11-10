@@ -1,0 +1,391 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 4000
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 1848
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "samsung"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "Galaxy S23 FE"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "S711USQS6DYI2"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2025:10:13 11:34:28"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 512
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 236
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 513,
+      "name": "ThumbnailOffset",
+      "value": 1030
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 514,
+      "name": "ThumbnailLength",
+      "value": 25958
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.001002963
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 1.8
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 25
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0220"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2025:10:13 11:34:28"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2025:10:13 11:34:28"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36880,
+      "name": "OffsetTime",
+      "value": "+02:00"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36881,
+      "name": "OffsetTimeOriginal",
+      "value": "+02:00"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37377,
+      "name": "ShutterSpeedValue",
+      "value": 0.999305040620553
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37378,
+      "name": "ApertureValue",
+      "value": 1.79626474576787
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37379,
+      "name": "BrightnessValue",
+      "value": 8.59
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 1.79626474576787
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 5.54
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37520,
+      "name": "SubSecTime",
+      "value": 950
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37521,
+      "name": "SubSecTimeOriginal",
+      "value": 950
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37522,
+      "name": "SubSecTimeDigitized",
+      "value": 950
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40960,
+      "name": "FlashpixVersion",
+      "value": "0100"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 65535
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 4000
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 1848
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41986,
+      "name": "ExposureMode",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41987,
+      "name": "WhiteBalance",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41988,
+      "name": "DigitalZoomRatio",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41989,
+      "name": "FocalLengthIn35mmFormat",
+      "value": 23
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41990,
+      "name": "SceneCaptureType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42016,
+      "name": "ImageUniqueID",
+      "value": "K10XLQB00MM"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 1,
+      "name": "GPSLatitudeRef",
+      "value": "N"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 2,
+      "name": "GPSLatitude",
+      "value": 48.667171
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 3,
+      "name": "GPSLongitudeRef",
+      "value": "E"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 4,
+      "name": "GPSLongitude",
+      "value": 8.79734799972222
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 5,
+      "name": "GPSAltitudeRef",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 6,
+      "name": "GPSAltitude",
+      "value": 622
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

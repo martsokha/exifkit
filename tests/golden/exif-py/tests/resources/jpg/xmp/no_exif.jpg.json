@@ -1,0 +1,176 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 4134
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 5906
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": "Der Goalie bin ig"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "Adobe Photoshop CC (Macintosh)"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2014:09:22 10:56:35"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 315,
+      "name": "Artist",
+      "value": "CREDIT"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 40091,
+      "name": "XPTitle",
+      "value": "Der Goalie bin ig"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 40092,
+      "name": "XPComment",
+      "value": "Der Goalie bin ig,  Film von Sabine Boss mit Marcus Signer, Sonja Riesen, Pascal Ulli. Schweiz, 2014, 100 Min. Auch auf DVD (fr, en, de), ca. CHF 22.–."
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 40093,
+      "name": "XPAuthor",
+      "value": "CREDIT"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 40094,
+      "name": "XPKeywords",
+      "value": "tag"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 40095,
+      "name": "XPSubject",
+      "value": "Cinema"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 59932,
+      "name": "Padding",
+      "value": "(Binary data 2060 bytes, use -b option to extract)"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0221"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 322
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 466
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 59932,
+      "name": "Padding",
+      "value": "(Binary data 2060 bytes, use -b option to extract)"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": [
+    "[minor] Fixed incorrect URI for xmlns:MicrosoftPhoto [x2]"
+  ]
+}

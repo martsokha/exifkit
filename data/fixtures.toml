@@ -1,0 +1,850 @@
+# Third-party sample images used by tests/corpus.rs. They are NOT committed:
+# `cargo xtask fixtures` downloads them, pinned by commit and checked by SHA-256,
+# into tests/fixtures/external/ (gitignored). See docs/roadmap.md#testing.
+#
+# Licensing: these files are not redistributed by this repository. Their
+# licenses vary per file; see each source's own notes.
+#
+# Privacy: tests/golden/ holds ExifTool's output for these files unmodified,
+# including any GPS coordinates. That is deliberate: every file is already
+# public at the pinned URL below, and the goldens must stay plain ExifTool
+# output so mismatches are readable. To keep a file's metadata out of the
+# repository, remove the file from this list instead of redacting its golden.
+
+[[source]]
+name = "exif-py"
+url = "https://raw.githubusercontent.com/ianare/exif-py/8f6efb2c6e2ed3481ba5d0c5c10c87097de9e9a1/"
+notes = "BSD-3-Clause repository. Images: Wikimedia Commons (per-file licenses, see tests/resources/jpg/README.txt), exif.org samples, spatialite GPS samples, contributions under CC BY-SA 4.0."
+
+[[source]]
+name = "little_exif"
+url = "https://raw.githubusercontent.com/TechnikTobi/little_exif/2c86b66d2feeb1498180ec33cca5aab60239dfbd/"
+notes = "MIT OR Apache-2.0 repository. Images attached to issues by their reporters."
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Canon_40D.jpg"
+sha256 = "6bfdabd4fc33d112283c147acccc574e770bbe6fbdbc3d4da968ba7b606ecc2f"
+size = 7958
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Canon_40D_photoshop_import.jpg"
+sha256 = "40a7aa2cc28d8544b31408e6d54c568e6b749a8faf239c7a6234b315e953b9d5"
+size = 9686
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Canon_DIGITAL_IXUS_400.jpg"
+sha256 = "23c1ec51c075d6864862412d07b9d0f07e84237af68972c1d1293e4c28f73e4f"
+size = 9198
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Canon_PowerShot_S40.jpg"
+sha256 = "8a9d04b92d0de5836c59ede8ae421235488e4031e893e07b1fe7e4b78f6a9901"
+size = 32764
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Fujifilm_FinePix6900ZOOM.jpg"
+sha256 = "40afc753b4e83d72cfa1080ae7a10310e0fcbb9e4f6ebdf32c7b2f1553c83fe3"
+size = 4278
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Fujifilm_FinePix_E500.jpg"
+sha256 = "ffbee7b07bf267dc0fb52817f8866df647758f7d48ac93e7a73d1914fb4c74da"
+size = 2241
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Kodak_CX7530.jpg"
+sha256 = "ac759931999a215ef78469a82bdfc382ccba96eb8d039ec9e81e53a9a419d35e"
+size = 5958
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Konica_Minolta_DiMAGE_Z3.jpg"
+sha256 = "b1b914f47528384e6252fa7caabb489f123b88c81ebd62ecb8eacdf64c46fd5e"
+size = 36971
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Nikon_COOLPIX_P1.jpg"
+sha256 = "896b47424dc1c87154a50b40394ae887a0b0d7d830f38a9d969295995f27ef43"
+size = 7068
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Nikon_D70.jpg"
+sha256 = "8e2a627b96ca71c20129161f46bda3d338407da99bd11b1055adb27af27d7ef5"
+size = 14034
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Olympus_C8080WZ.jpg"
+sha256 = "3495de26279d8d1e442177ba43cef855438e3b321481b9ee2ff513decb13ed9c"
+size = 3224
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/PaintTool_sample.jpg"
+sha256 = "45e3aa44357a4b05d78b3fc51d0732be0ddf5a544b732b0134778b146380291a"
+size = 5738
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Panasonic_DMC-FZ30.jpg"
+sha256 = "c092a4ade7ae7b63ac13d50c3dc9da51ce2fb465caf7d1b6193d4c53f59e8ad8"
+size = 10769
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Pentax_K10D.jpg"
+sha256 = "146601c9d406410abdaa832508ee4ccddbc7ad54530e81d57962c1b7728e2e6d"
+size = 12077
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Reconyx_HC500_Hyperfire.jpg"
+sha256 = "d7ba6bc532a225c955411cb96c733a45ee39403fa973312bded7732e6f8e4b3c"
+size = 425890
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Ricoh_Caplio_RR330.jpg"
+sha256 = "e920d750c491f3088eeb0f31fb4659164755af11e4bbbe269430f32c3ae10928"
+size = 3662
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Samsung_Digimax_i50_MP3.jpg"
+sha256 = "e61da5ee8d7ba1726bd0a887216ed5ae7ca38c97fcf7aac11b808e1c269e1722"
+size = 45286
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Sony_DSLR-A200.jpg"
+sha256 = "a21730078d69b6300c87db44a6912979b1812dd8e6f7b131e6c4709d940423ed"
+size = 632566
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Sony_HDR-HC3.jpg"
+sha256 = "4f707d9b40d423a5246748bc1e05b66c4b87e30863f7a51ce18904a7ec43a39e"
+size = 3565
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/Sony_alpha_a58.JPG"
+sha256 = "227f97c068d3fe038901b238580bac6440a6f172667b317fa85712388d73d9f7"
+size = 24871
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/WWL_Polaroid_ION230.jpg"
+sha256 = "27532bdce8a2ad2afc1e392f4d24105867eec0b1ba126b01b3e398100daab664"
+size = 3998
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/corrupted.jpg"
+sha256 = "dcc801f45d7607d82661d08c4c6b188bdbf3129b55f7612830a6dc3fea573023"
+size = 1960703
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/canon-ixus.jpg"
+sha256 = "b2d085bdb261cb2c56d8ba10d79175e38c0acd0d429afe19a4610eddee3b06fe"
+size = 128037
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/fujifilm-dx10.jpg"
+sha256 = "7d6f8f7450f12bd768384a9cae66a9cc0f626cea023431614d967f34150def0d"
+size = 133074
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/fujifilm-finepix40i.jpg"
+sha256 = "722fa6b893b01d5970d9b0761df6ee97bcee28fcd5b8e78d761738058c6b7822"
+size = 43183
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/fujifilm-mx1700.jpg"
+sha256 = "f45a5d2c1c5f3ae55254239c02b569c01dd3926a64e08d4a141ce4dbff637856"
+size = 100227
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/kodak-dc210.jpg"
+sha256 = "6da5cfdcbd2d462220da5ac1c4e0df32c61f078efe92c777036cf629fe791ad5"
+size = 79837
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/kodak-dc240.jpg"
+sha256 = "6dcac4b77b55a9f5e5c0486c1f28b8b2eb65b292d3c43499cdde47ef11d367a4"
+size = 81901
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/nikon-e950.jpg"
+sha256 = "7920518dec63a63074ca8e1861b61f69be687b3dd0caa3eb65cdaac4c4f43fd0"
+size = 164151
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/olympus-c960.jpg"
+sha256 = "325671969a8059d2ad0036e2db8476262592add0ca5174c260fa03e9e455809d"
+size = 87599
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/olympus-d320l.jpg"
+sha256 = "6a41599dc31c73e8a9c896e2669ecfb2b03a74be04fac0dd9371ed457e50a762"
+size = 61264
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/ricoh-rdc5300.jpg"
+sha256 = "16182006e2f82e60f11e0bad3964cac539bba4e58d14a3152bfe5aeb1907ab19"
+size = 87626
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/sanyo-vpcg250.jpg"
+sha256 = "4723c892d4d3c200074f3a8a437b0d3e62e631e140b68e2386a54c45f0da2566"
+size = 62096
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/sanyo-vpcsx550.jpg"
+sha256 = "74401cc6e0b6bdb03b7d3a1c99a0ba3b4dd5b3ac9b7728a38f6fb3607f3360ea"
+size = 102448
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/sony-cybershot.jpg"
+sha256 = "0e69b12f261907dc9fcfb89082a6a61948db849d836673017a7e972d49184404"
+size = 63643
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/sony-d700.jpg"
+sha256 = "8ff0028190b36a6c4af79989b248dd5e949d289d32c5f0e005be2db45d363c98"
+size = 79446
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/exif-org/sony-powershota5.jpg"
+sha256 = "608c6c0a57205c42ca4169b5574823ed1c05e4e636a038cda64b6ef18ae5d274"
+size = 58405
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0010.jpg"
+sha256 = "17307b1207eb6487d7908e9d154890b46e3d2e0192369cfd3f4c33d5a5af4035"
+size = 161713
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0012.jpg"
+sha256 = "84d60184ac4098b7967e2ef6dae6b03fc0d98b24624d2b57412dbcd7cb864680"
+size = 159137
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0021.jpg"
+sha256 = "441daaea545eb8bdb1434817fc36be0baa8992a4c9ad4b089726033bfc4bc963"
+size = 157382
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0025.jpg"
+sha256 = "9437619d5ab1afe7740d546effe76ffe52548af68b9be72cef259d0cd1f9c90b"
+size = 150301
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0027.jpg"
+sha256 = "0a7864e5fa07cc118f3df1e38f31e5181350c30010e8115c536c7a8a664c9f13"
+size = 157723
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0029.jpg"
+sha256 = "941b9c7bfe35e0a3775f013e613748f55d1152736a74bd51e34f1b66bd646697"
+size = 150085
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0038.jpg"
+sha256 = "84792ae83e6ec83a5d909be82f68e51aeea67fdd6a7019993fdac4be4f6e6a72"
+size = 157569
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0040.jpg"
+sha256 = "14f6453d145c69c96e77c7e901cdbf58f7984c09fe4ab65ca8914c5d0d37e956"
+size = 152893
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/gps/DSCN0042.jpg"
+sha256 = "03837b2881d4cc7e5e03191b301f082088f999e4aa59e4489193874c93c31579"
+size = 156695
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/hdr/canon_hdr_NO.jpg"
+sha256 = "fa2127ebab1b3930c998ab262795044262f41dda7eaf0f7a21a773cff48c8696"
+size = 784371
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/hdr/canon_hdr_YES.jpg"
+sha256 = "30603e14619140acaea51bee6fecab4a72956d1aa570e20f5b9b3d9271b8bdf4"
+size = 722875
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/hdr/iphone_hdr_NO.jpg"
+sha256 = "eb81d33a9b1d1bea5d133483f918c2cc927161c0dda44c9fedfa4da87c8b1cc3"
+size = 1957448
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/hdr/iphone_hdr_YES.jpg"
+sha256 = "5125870f6f4a94a2329bc9f53482680772d3277399aed71c2f0636cb07870533"
+size = 1976579
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image00971.jpg"
+sha256 = "4793aef30d2d042f15723bf22fa8c5b9932c6b5e97bc090e7a82c0845b2a47db"
+size = 164210
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image01088.jpg"
+sha256 = "99366772dd3e323d52bf6667b2955c8a2859f0ba9d88d96c2c0a0ade16d96d9e"
+size = 87107
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image01137.jpg"
+sha256 = "d28160c63cbb4c9a9709e917b1bf0208d6240d1d3e22b28ec23abb08f957c52c"
+size = 26898
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image01551.jpg"
+sha256 = "ef8e654304d58238af70f4ba8f52b095c8d801ebba0dfb6b089b53d835c36c5a"
+size = 15994
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image01713.jpg"
+sha256 = "5281b682dc913fee5a3b7d172bfb8c8068a1bcc3138c3d29f98db34bc807798c"
+size = 17412
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image01980.jpg"
+sha256 = "0eda850fefce6ae4c148815bfb20962309b75e542de421845615ccef7a962f00"
+size = 17857
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/invalid/image02206.jpg"
+sha256 = "527ae341310acbdeedf60d1087a23081ed279e3e6ecdd7e4b82d586acfbc0735"
+size = 14574
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/long_description.jpg"
+sha256 = "1a6e4a1b7fab604027cbb52b6cde75f6966c8b9a2eb3ea0fba5e1bf59605a339"
+size = 7585
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/mobile/HMD_Nokia_8.3_5G.jpg"
+sha256 = "9be023624ccd5846beeb5b02d9b571251ef5bd8ed820389a430d114029f58eda"
+size = 2190194
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/mobile/jolla.jpg"
+sha256 = "ee6bc1200cf8b1b26f5b60d8294d9617e8099f6dfdd7a4757a424f332360f5e3"
+size = 811904
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_1.jpg"
+sha256 = "87ea27ba9f24cb133251850a7ebd11427ba5e4be0a3a8534a58b00041b2db06d"
+size = 139435
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_2.jpg"
+sha256 = "47aa72c02bd24b17db58cd8e25a57dd97f54abc9461fc1fb8bf2d8889d8494a5"
+size = 137359
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_3.jpg"
+sha256 = "533f2e6d35a62e9bc144dbb3921a9b2105cf2498eaafb10812f197e6108bd758"
+size = 140965
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_4.jpg"
+sha256 = "552568f6965f76c94fced5cd3286775fcc7746fbc796f7a7ab8e7c8d533b666c"
+size = 140588
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_5.jpg"
+sha256 = "592f903706fe4b215a08adbd0ed8b62d28aad4e6532ee13777f4aa12787f54a7"
+size = 137611
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_6.jpg"
+sha256 = "a05082c57819232106a0612f57268efab011f7a2a477483b878a2b4509cd8e59"
+size = 137628
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_7.jpg"
+sha256 = "e5273d4ea5fddcaf27fefc7ea4162c2b3c77ad056e2d8d65a5d61787b5b15db4"
+size = 140645
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/landscape_8.jpg"
+sha256 = "5b5c9979cbf6077e97894488be20c849b5eb008fe685c0cb75060c4ab6812ce0"
+size = 141286
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_1.jpg"
+sha256 = "31b06a687d094aabaab611bbdb83b37bee044d7411087e24120169a8a7d5a511"
+size = 129059
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_2.jpg"
+sha256 = "f0b06c75694f6d97e17121dae0697832dea0daf0cd81e4d0e8107cbe8a7e299f"
+size = 136072
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_3.jpg"
+sha256 = "ca9fb9a159320e6209d53a579b04be323095797b8bfc8ab5110ec8c38ecf9818"
+size = 135813
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_4.jpg"
+sha256 = "50fc16ad1174fc6eddd002ecd8baa310132c56fd8f732096889e105d718fac1a"
+size = 131520
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_5.jpg"
+sha256 = "dfbdfaf8a72e4fde8686c08df6cfe332864635affd0a9fb6e06cb106094b302e"
+size = 133715
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_6.jpg"
+sha256 = "323ce0d7140be76cbe6511e268766241dfe74eddf34b73f27f4637e552c8d824"
+size = 136257
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_7.jpg"
+sha256 = "792794408dc57227adb341a75a5766e36904a7ec0e640d6cca2d8b14fe25c141"
+size = 135366
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/orientation/portrait_8.jpg"
+sha256 = "2691666c64b68d563f50226c2df921c9edee827abf402e922be4be2e992fb061"
+size = 132543
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/11-tests.jpg"
+sha256 = "2a41ccc348800707d7c19ce0e3457f5d4295486f29bf0a73f8cbe4bcf272136e"
+size = 236569
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/22-canon_tags.jpg"
+sha256 = "494458d1d90e7d2b7c1aefe362cbf167ecdca1f3477f0bd2c801503a1d537b14"
+size = 448492
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/28-hex_value.jpg"
+sha256 = "2a08dd2931cb224f9b4864a4699cdd5093ed334faf68c9d2ef1e832855b219ae"
+size = 1350507
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/30-type_error.jpg"
+sha256 = "f2c156654b78e8a1f84a4d60932a15e76d3e106c7e51bd968fe2f5eda4d33f4d"
+size = 300825
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/32-lens_data.jpeg"
+sha256 = "f0096a6d5c24dbe270525f7dc575e26ea28df63824055e7ad3253e2cf0d1dab0"
+size = 36731
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/33-type_error.jpg"
+sha256 = "16713b68edda8862069993045bfdba03f1c63c5f05857955f5a98c2c82ca5598"
+size = 178028
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/35-empty.jpg"
+sha256 = "44f1819124a7f7dba6552f629372649441f8ab24e4e7f4c1ebe5091d582220c8"
+size = 1010466
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/36-memory_error.jpg"
+sha256 = "3b0d73976a304eb0fe99048b066e19e6006b35cb620737af4c8915acedf98b16"
+size = 865978
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/42_IndexError.jpg"
+sha256 = "d64e7c04839af125647d5a7500eb3b3e1b5c1ef81698a60e8b48b272f9ca5090"
+size = 2913134
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/45-gps_ifd.jpg"
+sha256 = "0a986ea141d5f8f8b7588d6217e9a2d12140a76ec36cb0a022710c3e9fdfc921"
+size = 230349
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/67-0_length_string.jpg"
+sha256 = "d45980d197658e88f7a4452b379fc3e9b2feb37f1b271ad7e5ce8560da8c2b10"
+size = 162716
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/87_OSError.jpg"
+sha256 = "1f2b247e1ab6c26a41f670a7653404eda7eb198e923d71cafea04a0a934380e6"
+size = 889829
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/tests/nikon_D3100_TypeError.jpg"
+sha256 = "cd2de0459c0bdf5fada567b7beb5937a0bbfd3964d1122889bd8211f443a4267"
+size = 22150
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/xmp/BlueSquare.jpg"
+sha256 = "1e1cdf92904b5da35302c2655e5f7a2ea68d6bf8d9b3922225e3f2a17ba3bb6b"
+size = 24205
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jpg/xmp/no_exif.jpg"
+sha256 = "8e8c4a3233e1293fbe46933bdf38c85fdbcd070b8f5daa4f8b4342371d1d9673"
+size = 182252
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/raw/nikon_z_9_high_efficiency_compressed_dx_cropped_max_overexposed.dng"
+sha256 = "fed506abbae92c6cfb6251da8002bbc70968df5430c0a7ee326203cb5bbeb6a7"
+size = 227824
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/raw/sony_alpha_a7iii_raw_image.ARW"
+sha256 = "3ce390af5bc051fbc09e7ed4d43b47cc769c6573dddb384cb5090fdadc5358b4"
+size = 8255
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Arbitro.tiff"
+sha256 = "26f4b11c45ad3e56a530d03967ff4627892b3264183b85fefba194ff1fe3e08e"
+size = 6925
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/BSG1.tiff"
+sha256 = "f6e07811917470456d85bbe0d2c00f11fe57ea212afc33432e4457dfca6bd2a5"
+size = 288538
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Crémieux11.tiff"
+sha256 = "bda84c06634c1dd5f79c324829c485ee39dd24bf6d91e7fd81986cd0520eea18"
+size = 10944
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/DudleyLeavittUtah.tiff"
+sha256 = "eabf6e832781b0c0130b8e0cb2533877ed11118bb08b7cdfe8939afe9997acc6"
+size = 91504
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Jobagent.tiff"
+sha256 = "8038925348ca9606995c95438d50630982069063b7c428b126a3282a01f246cd"
+size = 13068
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Picoawards.tiff"
+sha256 = "50dda7bf3c42e6c3979e25d6fec05d01e424274c8f28c4c9a911966d4faeb33e"
+size = 15512
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Rudless.tiff"
+sha256 = "be28b5a40ad84fbeb9a2fa8fb34fe16cd22560ff7d0cf70cfad3da8183d02b21"
+size = 74954
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/tiff/Tless0.tiff"
+sha256 = "32f6aab90dc2d284a83040debe379e01333107b83a98c1aa2e6dabf56790b48a"
+size = 21994
+
+[[fixture]]
+source = "little_exif"
+path = "examples/image.jpg"
+sha256 = "f85467db33c4def1f273edbd2a10c8a9f79f0ebd73e9791df570ca2387c9c237"
+size = 812
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000002/0010_A0420427.JPG"
+sha256 = "090e49a1aeb7c2e38bd3ef7f6e00f29fabc9b48ed1c7e7d79ccd9182b7aed3e4"
+size = 69289
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000002/x.jpg"
+sha256 = "b96a16115478002047610c5dcbe041bdfea9fa03108fc6c112b617e72e61599c"
+size = 8640
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000003/301581895-a7b4390a-e9f4-46cc-b04f-eb1ba677204c.jpg"
+sha256 = "185e06d92eb11a7c1be6e29c8e05abe2b4529f90cc4ecf13b54c2d776570659b"
+size = 4702
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000006/309465781-9420afb8-2a57-4bae-a188-a719f6d62b1f.JPG"
+sha256 = "da723e6f34ccae68577197fc6db28e8f56223113ade8cf64094c8129168857b9"
+size = 7269
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000012/PXL_20241007_142045194.jpg"
+sha256 = "03b85c99eba4546e344b8f31984f35e005082c2ec2f5429f0f75adf145830aa8"
+size = 1482457
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000015/IMG_20240828_184255.jpg"
+sha256 = "90673fe24ef0c5c8b6b3f73f0485f0a416ddeac018ab2a6a76a6550342930480"
+size = 5329
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000018/x.jpg"
+sha256 = "b96a16115478002047610c5dcbe041bdfea9fa03108fc6c112b617e72e61599c"
+size = 8640
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000019/2019_Stuttgart_Emilio_SL_925-014-126.JPG"
+sha256 = "fcd2b7ac0c22caacd5c3f1e5e90dec2a21bac5dd014659b88bff7573422f96f5"
+size = 55532
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000020/2017_emilio_meister_IMG_4436.JPG"
+sha256 = "d72317543d512100f9868030b7a8ca5f5a351e58d97f95ab3f0a8f12988fd1ef"
+size = 19507
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000021/dsc22921.jpg"
+sha256 = "ce0cd7db45963a394af769b3a538032e6077d23c9402834fd1ba2b677dc75648"
+size = 45660
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000025/A0579322.jpg"
+sha256 = "b3d4f79de3e9f151f046bac6ed711da27c80f77ddfd7138c139674654391f2b6"
+size = 8758
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000028/2017_aachen_abendhimmel_emilio.jpg"
+sha256 = "f26ec822f1331128bbb30df6d32e9f311140a719f09b0f0b98ae6f55b0fb19ff"
+size = 20343
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000028/2017_isernhagen_sorento_1.jpg"
+sha256 = "9cbf319b81a38be7425bd36a6a01cf9a02e0f2144eb35b109bba57f43b67d02e"
+size = 1388
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000028/2017_stockholm_emilio.jpg"
+sha256 = "065408ef54bdf0b2b59ca5f18eb2a1a96ca77112514d78180c580329a577acf7"
+size = 2626
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000031/DSC22278.JPG"
+sha256 = "9fdceda9fe85d5007a094ebe2d8527937368221c974ee3d0ccceeb7c220911ed"
+size = 30094
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000036/IMG-20180904-WA0002.jpg"
+sha256 = "56daf8bea2ffae4f8ce588c96eef8c25129d931631e61b6295d5186e64e7e751"
+size = 1049
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000038/2017_stuttgart_07_.jpeg"
+sha256 = "0e1ae81fd79982ee89adaae4535b4a9b64f89d3ce5f1a0b0761321136b4d370d"
+size = 6930
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000043/381105553-cb23b235-9905-440a-a85c-13f44d5818d4.jpg"
+sha256 = "0b9bff1698cd3da4a333c694681a58b72dd4d9aa13c3e118e35a86ee9a7fc911"
+size = 4313
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000049/382577930-5fd51906-3f81-4371-a968-a83ba43f4b20.jpg"
+sha256 = "494efa074859684e116ed50a5e180e33f010aa63994c65569f3f68c289ac72b5"
+size = 17258
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000063/image.jpeg"
+sha256 = "b75610cae0efd126c6bf45f08f5d095ce7efeae0cbb36f62fccb6797e62e3fbf"
+size = 3602
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000065/20160513-A0012+001.tiff"
+sha256 = "960b94a7b77dd5292fe85682948457527d5f5f0889a7c42fe32a841c69fca2d2"
+size = 56924
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000066/464717007-c0dff257-5c39-4b7f-8908-9eeebb5a627c.jpeg"
+sha256 = "b75610cae0efd126c6bf45f08f5d095ce7efeae0cbb36f62fccb6797e62e3fbf"
+size = 3602
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000070/IMG_2762.JPEG"
+sha256 = "13a692a27275b686c09b71e4c912cc0ff82af3ca88d6c2d630ad5b78a4bfa26b"
+size = 7282
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000074/515375534-6e537b75-8c85-47ca-a62c-27639a90b73c.jpg"
+sha256 = "f98b3151f4c28d96460fdf04b01651b15348197b69f8de5af5b58562fe25e811"
+size = 28488
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000076/2017_stockholm_emilio.jpg"
+sha256 = "065408ef54bdf0b2b59ca5f18eb2a1a96ca77112514d78180c580329a577acf7"
+size = 2626
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/259624375424747111241219798258747248513_img_base.jpg"
+sha256 = "629266fbe0aad41808882a945cc88b8881cf31c5eb7ba8a59580b5e83ae7f1db"
+size = 9771
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/275238915753691881415960246141657713218_img_base.jpg"
+sha256 = "e87bac231e2c11b1aef6981358189ad5c51f67069a43131b1512ed823a7607c6"
+size = 68149
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/307118273949694625498793115961147426280_img_base.jpg"
+sha256 = "90519862a5bc59ca5702ff802a2f16e8cdcd28b124f891bb03556b920742d94e"
+size = 54254
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/321382351771927671550184244404557053076_img_base.jpg"
+sha256 = "fe44e67b4b46f67a3ce818e4c416268df4d172bd1babb42148bbbe7cbaec992e"
+size = 87243
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/334982160166384331531360669298487872463_img_base.jpg"
+sha256 = "40b5ae0df66540ba3ac60edf2840b4b8edd0500706105f3b63083e3a8993119a"
+size = 70657
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000085/337925378596053285636251667967174304145_img_base.tif"
+sha256 = "00e4343544412c9a529bbc40f47bf81b0e68a71e5dc6b8011064e51feb631978"
+size = 11823
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000093/24204211336558490774263267518266904513.JPG"
+sha256 = "4f0a6dfa35943a8269d5b0f5f50987079fc0f028588b83a0c857561c4d48642b"
+size = 2785996
+
+[[fixture]]
+source = "little_exif"
+path = "tests/no_exif.jpeg"
+sha256 = "de80be2d5c9408874214650b62784228c3c8bfd913c242016d67c6d8fe2f4089"
+size = 636
+
+[[fixture]]
+source = "little_exif"
+path = "tests/read_sample.jpg"
+sha256 = "52f2c5ffce46abf61c2804d6541680ac34c16c206310bef0e26e88653e5f7aa9"
+size = 1007
+
+[[fixture]]
+source = "little_exif"
+path = "tests/read_sample.tif"
+sha256 = "9bcbded51a81ead96e23e0a423be2b7e7822c9daf20a2511ffbaa1b35c868c8f"
+size = 2256
+
+[[fixture]]
+source = "little_exif"
+path = "tests/sample2.jpg"
+sha256 = "ef8c9bcc523c5bca6c7e30f4434a4581e6c816013228961fba1b21b0ff57c9be"
+size = 140300

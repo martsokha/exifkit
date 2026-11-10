@@ -1,0 +1,286 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": "          "
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "NIKON"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "E950"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "v981-79"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2001:04:06 11:51:40"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 513,
+      "name": "ThumbnailOffset",
+      "value": 2066
+    },
+    {
+      "copy": 0,
+      "group": "IFD1",
+      "id": 514,
+      "name": "ThumbnailLength",
+      "value": 4662
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.01298701299
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 5.5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 80
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0210"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2001:04:06 11:51:40"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2001:04:06 11:51:40"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37121,
+      "name": "ComponentsConfiguration",
+      "value": "1 2 3 0"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37122,
+      "name": "CompressedBitsPerPixel",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 2.46228882668983
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37384,
+      "name": "LightSource",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 12.8
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37510,
+      "name": "UserComment",
+      "value": ""
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40960,
+      "name": "FlashpixVersion",
+      "value": "0100"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 1600
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 1200
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41728,
+      "name": "FileSource",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41729,
+      "name": "SceneType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "InteropIFD",
+      "id": 1,
+      "name": "InteropIndex",
+      "value": "R98"
+    },
+    {
+      "copy": 0,
+      "group": "InteropIFD",
+      "id": 2,
+      "name": "InteropVersion",
+      "value": "0100"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

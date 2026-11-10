@@ -1,0 +1,258 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "16 16 16 16"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 259,
+      "name": "Compression",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 266,
+      "name": "FillOrder",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Panasonic"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "XX-XXXXX"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 302
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 36
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 72
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "ON1 Photo RAW"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 338,
+      "name": "ExtraSamples",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 339,
+      "name": "SampleFormat",
+      "value": "1 1 1 1"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.0125
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 2706
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2024:04:28 21:02:32"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 9
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 75
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41987,
+      "name": "WhiteBalance",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42033,
+      "name": "SerialNumber",
+      "value": "WA0A0000000"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42035,
+      "name": "LensMake",
+      "value": "Olympus"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 42036,
+      "name": "LensModel",
+      "value": "OLYMPUS M.00-00 mm F4.2"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}
