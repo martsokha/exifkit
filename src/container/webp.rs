@@ -185,6 +185,15 @@ fn chunk(fourcc: &[u8; 4], payload: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
+/// Appends a chunk at an even offset. Only the file's last chunk can lack
+/// its padding byte (some writers drop it), so pad before writing after it.
+fn push_chunk(body: &mut Vec<u8>, chunk: &[u8]) {
+    if body.len() % 2 == 1 {
+        body.push(0);
+    }
+    body.extend_from_slice(chunk);
+}
+
 /// Replaces the `EXIF` chunk with one holding `tiff`, or removes it when
 /// `tiff` is `None`, keeping the `VP8X` EXIF flag in step. A simple-format
 /// file (a bare `VP8 ` or `VP8L` chunk) gains a `VP8X` header with the
@@ -239,11 +248,11 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
         if Some(index) == insert_at
             && let Some(new) = &new_chunk
         {
-            body.extend_from_slice(new);
+            push_chunk(&mut body, new);
         }
         if Some(index) == target {
             if let Some(new) = &new_chunk {
-                body.extend_from_slice(new);
+                push_chunk(&mut body, new);
             }
             continue;
         }
@@ -268,7 +277,7 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
     if insert_at == Some(spans.len())
         && let Some(new) = &new_chunk
     {
-        body.extend_from_slice(new);
+        push_chunk(&mut body, new);
     }
 
     let riff_size = u32::try_from(body.len().saturating_add(4)).map_err(|_| Error::TooLarge {
@@ -459,6 +468,20 @@ mod splice_tests {
             splice(&original, Some(TIFF)),
             Err(Error::Unsupported { .. })
         ));
+    }
+
+    #[test]
+    fn exif_after_an_unpadded_last_chunk_starts_even() {
+        // An odd-sized bitstream whose writer dropped the padding byte.
+        let mut lossless = vp8l(8, 8, false);
+        lossless.pop();
+        let out = splice(&webp(&[vp8x(0, 8, 8), lossless]), Some(TIFF)).unwrap();
+        let mut diagnostics = Diagnostics::default();
+        let range = locate(&mut crate::container::Slice(&out), &mut diagnostics)
+            .unwrap()
+            .unwrap();
+        assert_eq!(&out[range.start as usize..range.end as usize], TIFF);
+        assert_eq!(out.len() % 2, 0);
     }
 
     #[test]

@@ -341,7 +341,10 @@ fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
     Ok((spans, at))
 }
 
-/// Whether a text chunk carries an Exif raw profile.
+/// Whether a text chunk carries an Exif raw profile. `Raw profile type exif`
+/// always does. `Raw profile type APP1` is a generic APP1 container that
+/// can hold XMP too, so it counts only if its payload decodes to Exif;
+/// without `png-legacy` it cannot be decoded and is kept.
 fn is_raw_profile(data: &[u8], span: &Span) -> bool {
     if !matches!(&span.kind, b"tEXt" | b"zTXt" | b"iTXt") {
         return false;
@@ -352,10 +355,44 @@ fn is_raw_profile(data: &[u8], span: &Span) -> bool {
             ..u64::try_from(span.end.saturating_sub(4)).unwrap_or(0),
         crc: None,
     };
-    raw_profile(&mut super::Slice(data), &chunk)
-        .ok()
-        .flatten()
-        .is_some()
+    let Some(encoding) = raw_profile(&mut super::Slice(data), &chunk).ok().flatten() else {
+        return false;
+    };
+    let keyword = data
+        .get(span.start.saturating_add(8)..span.end)
+        .unwrap_or_default();
+    if keyword.starts_with(b"Raw profile type exif\0") {
+        return true;
+    }
+    is_exif_payload(data, &chunk, encoding)
+}
+
+#[cfg(feature = "png-legacy")]
+fn is_exif_payload(data: &[u8], chunk: &Chunk, encoding: Encoding) -> bool {
+    let Encoding::PngRawProfile {
+        compressed,
+        text_offset,
+    } = encoding
+    else {
+        return false;
+    };
+    let start = usize::try_from(chunk.data.start)
+        .unwrap_or(usize::MAX)
+        .saturating_add(usize::try_from(text_offset).unwrap_or(usize::MAX));
+    let end = usize::try_from(chunk.data.end).unwrap_or(0);
+    let Some(text) = data.get(start..end) else {
+        return false;
+    };
+    // Cap the work on huge profiles; an Exif profile that big is kept.
+    decode_raw_profile(text, compressed, 1 << 24).is_ok_and(|payload| {
+        let tiff = payload.strip_prefix(b"Exif\0\0").unwrap_or(&payload);
+        tiff.starts_with(b"II*\0") || tiff.starts_with(b"MM\0*")
+    })
+}
+
+#[cfg(not(feature = "png-legacy"))]
+fn is_exif_payload(_: &[u8], _: &Chunk, _: Encoding) -> bool {
+    false
 }
 
 /// An `eXIf` chunk holding `tiff`.
@@ -632,6 +669,29 @@ mod splice_tests {
             .exif
             .is_none()
         );
+    }
+
+    #[test]
+    #[cfg(feature = "png-legacy")]
+    fn non_exif_app1_profiles_are_kept() {
+        let hex = |bytes: &[u8]| {
+            bytes
+                .iter()
+                .map(|b| alloc::format!("{b:02x}"))
+                .collect::<alloc::string::String>()
+        };
+        let profile = |payload: &[u8]| {
+            let mut text = b"Raw profile type APP1\0\nAPP1\n".to_vec();
+            text.extend_from_slice(
+                alloc::format!("{}\n{}\n", payload.len(), hex(payload)).as_bytes(),
+            );
+            chunk(b"tEXt", &text)
+        };
+        let xmp = profile(b"http://ns.adobe.com/xap/1.0/\0<x/>");
+        let exif = profile(&[b"Exif\0\0", TIFF].concat());
+        let idat = chunk(b"IDAT", b"pixels");
+        let original = png(&[xmp.clone(), exif, idat.clone()]);
+        assert_eq!(splice(&original, None).unwrap(), png(&[xmp, idat]));
     }
 
     #[test]
