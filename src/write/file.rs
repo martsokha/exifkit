@@ -1,9 +1,10 @@
 //! Writing Exif back into image files. See `docs/containers.md`.
 
+use alloc::borrow::Cow;
 use alloc::vec::Vec;
 
 use super::WriteOptions;
-use crate::container::{self, Encoding, Format};
+use crate::container::{self, Format};
 use crate::error::{Error, Result};
 use crate::model::Exif;
 
@@ -39,8 +40,18 @@ impl Exif {
     pub fn write_into_with(&self, original: &[u8], options: &WriteOptions<'_>) -> Result<Vec<u8>> {
         let (located, _) = container::locate(original)?;
         let mut options = *options;
-        if options.source.is_none() {
-            options.source = own_block(original, &located);
+        let own = match (&located.exif, options.source) {
+            (Some(range), None) => {
+                let at = |o: u64| usize::try_from(o).unwrap_or(usize::MAX);
+                let payload = original
+                    .get(at(range.start)..at(range.end).min(original.len()))
+                    .unwrap_or_default();
+                own_block(Cow::Borrowed(payload), &located, original.len())
+            }
+            _ => None,
+        };
+        if let Some(own) = &own {
+            options.source = Some(own);
         }
         let tiff = self.to_tiff_with(&options)?;
         match located.format {
@@ -92,15 +103,21 @@ impl Exif {
         let mut diagnostics = crate::diagnostic::Diagnostics::default();
         let located = container::locate_in(&mut input, &mut diagnostics)?;
         // The file's own block, read from the stream, is the source.
-        let own = match (&located.exif, located.encoding) {
-            (Some(range), Encoding::Raw) if options.source.is_none() => {
-                Some(container::read_range(&mut input, range.clone())?)
+        let own = match (&located.exif, options.source) {
+            (Some(range), None) => {
+                let payload = container::read_range(&mut input, range.clone())?;
+                let len = container::Input::len(&mut input)?.unwrap_or(range.end);
+                own_block(
+                    Cow::Owned(payload),
+                    &located,
+                    usize::try_from(len).unwrap_or(usize::MAX),
+                )
             }
             _ => None,
         };
         let mut options = *options;
         if let Some(own) = &own {
-            options.source = Some(own.strip_prefix(b"Exif\0\0").unwrap_or(own));
+            options.source = Some(own);
         }
         let tiff = self.to_tiff_with(&options)?;
         if located.format == Format::Tiff {
@@ -130,17 +147,20 @@ fn keep_magic(original: &[u8], mut tiff: Vec<u8>) -> Vec<u8> {
     tiff
 }
 
-/// The file's own TIFF block, as the reader saw it, when it is stored raw.
-fn own_block<'a>(data: &'a [u8], located: &container::Located) -> Option<&'a [u8]> {
-    if located.encoding != Encoding::Raw {
-        return None;
-    }
-    let range = located.exif.clone()?;
-    let start = usize::try_from(range.start).ok()?;
-    let end = usize::try_from(range.end).ok()?.min(data.len());
-    let block = data.get(start..end)?;
-    // **quirk:** some PNG and WebP writers keep JPEG's `Exif\0\0` header.
-    Some(block.strip_prefix(b"Exif\0\0").unwrap_or(block))
+/// The file's own TIFF block, decoded as the reader decodes it (a
+/// compressed JPEG XL `brob` box or a legacy PNG text chunk included), to
+/// serve as the writer's source. `None` if it cannot be decoded; the writer
+/// then works without a source.
+fn own_block<'a>(
+    payload: Cow<'a, [u8]>,
+    located: &container::Located,
+    file_len: usize,
+) -> Option<Cow<'a, [u8]>> {
+    let limit = crate::limits::Limits::DEFAULT.alloc_budget(file_len);
+    let mut diagnostics = crate::diagnostic::Diagnostics::default();
+    container::tiff_payload(payload, located.encoding, limit, &mut diagnostics)
+        .ok()
+        .map(|(block, _)| block)
 }
 
 /// Removes the Exif data from a JPEG, PNG, WebP or JPEG XL file: the Exif

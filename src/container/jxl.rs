@@ -150,9 +150,19 @@ pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Res
         exif.push(exif_kind(input, b)?);
     }
     let target = exif.iter().position(Option::is_some);
-    // With JPEG reconstruction data, the Exif payload must keep its size, or
-    // the original JPEG can no longer be rebuilt (see `reconstructable`).
-    let reconstruction = boxes.iter().any(|b| &b.kind == b"jbrd");
+    // With JPEG reconstruction data that records an Exif segment, the Exif
+    // payload must keep its size, or the original JPEG can no longer be
+    // rebuilt (see `reconstructable`).
+    let reconstruction = match boxes.iter().find(|b| &b.kind == b"jbrd") {
+        Some(jbrd) => {
+            let end = jbrd
+                .data
+                .end
+                .min(jbrd.data.start.saturating_add(JBRD_HEADER_MAX));
+            records_exif(&super::pieces::read_range(input, jbrd.data.start..end)?)
+        }
+        None => false,
+    };
     let new_box = match (
         target.and_then(|t| Some((boxes.get(t)?, exif.get(t)?.as_ref()?))),
         reconstruction,
@@ -190,6 +200,71 @@ pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Res
         out.bytes(new.clone());
     }
     Ok(out)
+}
+
+/// Enough of a `jbrd` box for its header: at most 16384 markers of 6 bits,
+/// then for each APP marker a type and a 16-bit length.
+const JBRD_HEADER_MAX: u64 = 64 * 1024;
+
+/// Whether JPEG reconstruction data (a `jbrd` box) records an Exif APP
+/// segment, which is when `djxl` needs the Exif box to have the recorded
+/// size. A transcode of a JPEG without Exif records none, and later Exif is
+/// then free to change size.
+///
+/// Reads the start of libjxl's `JPEGData` fields (`lib/jxl/jpeg/jpeg_data.cc`,
+/// bits read LSB first): the gray flag, the marker list as 6-bit
+/// `marker - 0xC0` values up to EOI, then each APP segment's type (a U32
+/// with selectors 0, 1, 2 + 1 bit, 4 + 2 bits; Exif is 2) and length. If the
+/// header cannot be read, it answers `true`, which keeps the size: the safe
+/// choice.
+fn records_exif(jbrd: &[u8]) -> bool {
+    let mut bits = Bits { data: jbrd, at: 0 };
+    let parsed = (|| {
+        bits.read(1)?; // is_gray
+        let mut apps = 0usize;
+        for _ in 0..16384 {
+            let marker = bits.read(6)?.saturating_add(0xC0);
+            if marker & 0xF0 == 0xE0 {
+                apps = apps.saturating_add(1);
+            }
+            if marker == 0xD9 {
+                for _ in 0..apps {
+                    let kind = match bits.read(2)? {
+                        0 => 0,
+                        1 => 1,
+                        2 => bits.read(1)?.saturating_add(2),
+                        _ => bits.read(2)?.saturating_add(4),
+                    };
+                    bits.read(16)?; // length - 1
+                    if kind == 2 {
+                        return Some(true);
+                    }
+                }
+                return Some(false);
+            }
+        }
+        None
+    })();
+    parsed.unwrap_or(true)
+}
+
+/// An LSB-first bit reader, as JPEG XL headers use.
+struct Bits<'a> {
+    data: &'a [u8],
+    at: usize,
+}
+
+impl Bits<'_> {
+    fn read(&mut self, n: usize) -> Option<u32> {
+        let mut value = 0u32;
+        for i in 0..n {
+            let byte = *self.data.get(self.at / 8)?;
+            let bit = (byte >> (self.at % 8)) & 1;
+            value |= u32::from(bit) << i;
+            self.at = self.at.checked_add(1)?;
+        }
+        Some(value)
+    }
 }
 
 /// The size of an Exif box's payload (the u32 offset and the TIFF block),
@@ -290,6 +365,7 @@ fn decompress(compressed: &[u8], limit: usize) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
     use alloc::vec::Vec;
 
     use super::*;
@@ -426,7 +502,7 @@ mod tests {
 
     #[test]
     fn reconstruction_data_pins_the_exif_size() {
-        let jbrd = bx(b"jbrd", &[1, 2, 3]);
+        let jbrd = bx(b"jbrd", &jbrd_header(&[2]));
         let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
         let original = [TIFF, &[0u8; 10]].concat();
         let data = jxl(&[jbrd.clone(), exif(0, &original), codestream.clone()]);
@@ -448,6 +524,63 @@ mod tests {
         let tiff = tiff_at(&out, &find(&out).0);
         let (exif, _) = crate::Exif::from_tiff(&tiff).unwrap();
         assert_eq!(exif.entries().count(), 0);
+    }
+
+    /// Packs `(value, bits)` fields LSB first, as JPEG XL headers are.
+    fn pack(fields: &[(u32, usize)]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let mut at = 0usize;
+        for &(value, n) in fields {
+            for i in 0..n {
+                if at / 8 == out.len() {
+                    out.push(0);
+                }
+                out[at / 8] |= (((value >> i) & 1) as u8) << (at % 8);
+                at += 1;
+            }
+        }
+        out
+    }
+
+    /// A `jbrd` header: SOI, the given APP segment types, then EOI.
+    fn jbrd_header(apps: &[u32]) -> Vec<u8> {
+        let mut fields = vec![(0, 1), (0xD8 - 0xC0, 6)];
+        fields.extend(apps.iter().map(|_| (0xE1 - 0xC0, 6)));
+        fields.push((0xD9 - 0xC0, 6));
+        for &kind in apps {
+            match kind {
+                0 | 1 => fields.push((kind, 2)),
+                2 | 3 => fields.extend([(2, 2), (kind - 2, 1)]),
+                _ => fields.extend([(3, 2), (kind - 4, 2)]),
+            }
+            fields.push((99, 16));
+        }
+        pack(&fields)
+    }
+
+    #[test]
+    fn reads_whether_reconstruction_records_exif() {
+        assert!(records_exif(&jbrd_header(&[2])));
+        assert!(records_exif(&jbrd_header(&[1, 3, 2])));
+        assert!(!records_exif(&jbrd_header(&[])));
+        assert!(!records_exif(&jbrd_header(&[0, 1, 3])));
+        // Unreadable: keep the size, the safe answer.
+        assert!(records_exif(&[]));
+        assert!(records_exif(&jbrd_header(&[1, 2])[..2]));
+    }
+
+    #[test]
+    fn exif_added_to_a_transcode_without_exif_can_grow() {
+        // Found in review: Exif added after transcoding is not part of the
+        // reconstruction, so a later, bigger edit must not be refused.
+        let jbrd = bx(b"jbrd", &jbrd_header(&[1]));
+        let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
+        let data = jxl(&[jbrd.clone(), exif(0, TIFF), codestream.clone()]);
+        let bigger = [TIFF, &[0u8; 11]].concat();
+        assert_eq!(
+            splice(&data, Some(&bigger)).unwrap(),
+            jxl(&[jbrd, exif(0, &bigger), codestream])
+        );
     }
 
     #[test]

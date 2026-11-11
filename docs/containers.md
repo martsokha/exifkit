@@ -273,7 +273,10 @@ same pixels. `remove_exif` drops every Exif box.
 **JPEG reconstruction data (`jbrd`):** a losslessly transcoded JPEG can be
 rebuilt byte for byte by `djxl`, but only if the Exif payload has exactly
 the size `jbrd` records. Checked with libjxl: one byte more or less and
-`djxl` silently falls back to decoding pixels. So when a `jbrd` box exists,
+`djxl` silently falls back to decoding pixels. Whether `jbrd` records an
+Exif segment is read from the start of its header (the marker list, then
+each APP segment's type), as libjxl's `JPEGData` fields encode it; a JPEG
+transcoded without Exif records none. So when `jbrd` records an Exif segment,
 the new TIFF block is padded with zeros to the original payload size (and
 the rebuilt JPEG then carries the new Exif); a bigger block is
 `Error::TooLarge` rather than a silent loss of the lossless round trip.

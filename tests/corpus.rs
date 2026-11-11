@@ -353,8 +353,9 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
     }
     let (exif, _diagnostics) = match Exif::read(data) {
         Ok(read) => read,
-        Err(exifkit::Error::Unsupported { .. }) if !cfg!(feature = "png-legacy") => {
-            // Legacy PNG text chunks need the `png-legacy` feature.
+        Err(exifkit::Error::Unsupported { what }) if what.contains("enable the `") => {
+            // Needs an optional feature this build lacks (`png-legacy` for
+            // legacy PNG text chunks, `jxl-brob` for compressed JPEG XL).
             stats.skipped += entries.len();
             return problems;
         }
