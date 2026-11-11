@@ -118,6 +118,10 @@ pub struct SRational { pub num: i32, pub den: i32 }
 // to_f64() -> Option<f64> (None if den == 0), approx(f64, max_den) constructor, Display "1/250"
 ```
 
+Implemented in M2 (PR 3): `Exif::write_into[_with]` and `remove_exif`. A
+`write_stream` over `Read + Seek`/`Write` is not implemented yet; callers
+read the file into memory.
+
 Implemented in M2 (PR 2): `Exif::to_tiff[_with]`, `Exif::encoded_len`,
 `WriteOptions`, `MakerNotePolicy`, and editing through `Exif::insert`,
 `remove`, `ifd_mut`, `remove_ifd`, `set_thumbnail`, `set_byte_order` and

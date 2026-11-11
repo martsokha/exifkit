@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Writing into image files: `Exif::write_into` and `Exif::write_into_with` for
+  JPEG, TIFF, PNG and WebP. Only the Exif data changes, as a minimal diff of
+  the file's own block. Also `remove_exif`. JPEG checks the 64 KiB APP1 limit
+  (`Error::TooLarge`) and keeps MPF offsets valid. PNG recomputes CRCs and drops
+  legacy raw-profile Exif. WebP converts simple files to VP8X and keeps the EXIF
+  flag in step.
+- A `write_into` fuzz target, and corpus tests:
+  - every sample written back reads as the same model;
+  - bytes outside the Exif data are unchanged;
+  - `exiftool -validate` reports no new warnings after an edit.
+
+### Fixed
+
+- `Limits::max_sub_ifds` now applies per IFD, across all of its SubIFDs tags.
+  Before, an IFD with duplicate SubIFDs tags could exceed the limit, and a
+  written file then read back with SubIFDs missing.
+
 - Writing: `Exif::to_tiff`, `Exif::to_tiff_with(&WriteOptions)` and
   `Exif::encoded_len`. Without a source block the output is packed. With the
   block the model was read from (`WriteOptions::source`), the layout is a

@@ -31,6 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
+          - write_into
           - roundtrip
           - read_any
           - tiff_parse

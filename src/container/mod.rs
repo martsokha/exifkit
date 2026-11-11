@@ -280,6 +280,32 @@ pub(crate) fn tiff_payload<'a>(
     Ok((payload, position(0)))
 }
 
+/// Puts a new TIFF block into a JPEG, PNG or WebP file, or removes the
+/// Exif data when `tiff` is `None`. Only the Exif segment or chunk (and the
+/// container fields that depend on it) changes.
+pub(crate) fn splice(
+    data: &[u8],
+    format: Format,
+    tiff: Option<&[u8]>,
+) -> Result<alloc::vec::Vec<u8>> {
+    let _ = (data, tiff);
+    match format {
+        #[cfg(feature = "jpeg")]
+        Format::Jpeg => jpeg::splice(data, tiff),
+        #[cfg(feature = "png")]
+        Format::Png => png::splice(data, tiff),
+        #[cfg(feature = "webp")]
+        Format::WebP => webp::splice(data, tiff),
+        Format::Tiff => Err(Error::Unsupported {
+            what: "removing Exif from a TIFF file (its metadata is the file's structure)",
+        }),
+        #[allow(unreachable_patterns)]
+        _ => Err(Error::Unsupported {
+            what: "writing this format (not supported, or its feature is disabled)",
+        }),
+    }
+}
+
 /// Reports that the container ends before a structure it declares.
 #[cfg_attr(
     not(any(feature = "jpeg", feature = "png", feature = "webp")),

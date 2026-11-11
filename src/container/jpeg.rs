@@ -1,10 +1,12 @@
 //! JPEG: Exif lives in an APP1 segment, after an `Exif\0\0` header.
 
+use alloc::vec::Vec;
 use core::ops::Range;
 
-use super::{Input, truncated};
+use super::{Input, Slice, truncated};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics};
-use crate::error::Result;
+use crate::error::{Error, Result};
+use crate::tiff::{ByteOrder, Header as TiffHeader, RawIfd, Reader};
 
 const SOI: [u8; 2] = [0xFF, 0xD8];
 const APP1: u8 = 0xE1;
@@ -124,6 +126,247 @@ fn exif_header(input: &mut impl Input, payload: u64, len: u64) -> Result<Option<
     })
 }
 
+/// Largest TIFF block an APP1 segment can hold: the u16 length counts
+/// itself (2) and the `Exif\0\0` header (6).
+pub(crate) const MAX_TIFF: usize = u16::MAX as usize - 2 - 6;
+const APP0: u8 = 0xE0;
+const APP2: u8 = 0xE2;
+/// MP Entry tag of the MP Index IFD.
+const MP_ENTRY: u16 = 0xB002;
+
+/// One marker segment: `start` includes any fill bytes before the marker,
+/// `marker_at` is the marker's 0xFF, and `end` is one past the payload.
+struct Segment {
+    marker: u8,
+    start: usize,
+    marker_at: usize,
+    end: usize,
+}
+
+impl Segment {
+    fn payload<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        data.get(self.marker_at.saturating_add(4)..self.end)
+            .unwrap_or_default()
+    }
+}
+
+fn malformed(offset: usize, reason: &'static str) -> Error {
+    Error::Malformed {
+        offset: u64::try_from(offset).unwrap_or(u64::MAX),
+        reason,
+    }
+}
+
+/// Splits a JPEG into its marker segments, up to the scan. Returns them and
+/// where the rest of the file (SOS onwards, copied verbatim) starts.
+fn segments(data: &[u8]) -> Result<(Vec<Segment>, usize)> {
+    if data.get(..2) != Some(&SOI[..]) {
+        return Err(malformed(0, "not a JPEG"));
+    }
+    let mut segments = Vec::new();
+    let mut at = 2usize;
+    loop {
+        let Some(&first) = data.get(at) else {
+            return Ok((segments, at));
+        };
+        if first != 0xFF {
+            return Err(malformed(at, "expected a JPEG marker"));
+        }
+        let mut marker_at = at;
+        while data.get(marker_at.saturating_add(1)) == Some(&0xFF) {
+            marker_at = marker_at.saturating_add(1);
+        }
+        let Some(&marker) = data.get(marker_at.saturating_add(1)) else {
+            return Err(malformed(at, "truncated JPEG marker"));
+        };
+        if marker == SOS || marker == EOI {
+            return Ok((segments, at));
+        }
+        let end = if marker == 0x01 || (0xD0..=0xD7).contains(&marker) {
+            marker_at.saturating_add(2)
+        } else {
+            let Some(&[hi, lo]) =
+                data.get(marker_at.saturating_add(2)..marker_at.saturating_add(4))
+            else {
+                return Err(malformed(at, "truncated JPEG segment"));
+            };
+            let len = usize::from(u16::from_be_bytes([hi, lo]));
+            if len < 2 {
+                return Err(malformed(at, "invalid JPEG segment length"));
+            }
+            marker_at.saturating_add(2).saturating_add(len)
+        };
+        if end > data.len() {
+            return Err(malformed(at, "truncated JPEG segment"));
+        }
+        segments.push(Segment {
+            marker,
+            start: at,
+            marker_at,
+            end,
+        });
+        at = end;
+    }
+}
+
+fn is_exif(data: &[u8], segment: &Segment) -> bool {
+    let payload = segment.marker_at.saturating_add(4);
+    let len = segment.end.saturating_sub(payload);
+    segment.marker == APP1
+        && exif_header(
+            &mut Slice(data),
+            u64::try_from(payload).unwrap_or(u64::MAX),
+            u64::try_from(len).unwrap_or(0),
+        )
+        .ok()
+        .flatten()
+        .is_some()
+}
+
+fn is_mpf(data: &[u8], segment: &Segment) -> bool {
+    segment.marker == APP2 && segment.payload(data).starts_with(b"MPF\0")
+}
+
+/// An APP1 segment holding `tiff`.
+fn exif_segment(tiff: &[u8]) -> Result<Vec<u8>> {
+    if tiff.len() > MAX_TIFF {
+        return Err(Error::TooLarge {
+            size: tiff.len(),
+            max: MAX_TIFF,
+        });
+    }
+    let len = u16::try_from(tiff.len().saturating_add(8)).map_err(|_| Error::TooLarge {
+        size: tiff.len(),
+        max: MAX_TIFF,
+    })?;
+    let mut segment = Vec::with_capacity(tiff.len().saturating_add(10));
+    segment.extend_from_slice(&[0xFF, APP1]);
+    segment.extend_from_slice(&len.to_be_bytes());
+    segment.extend_from_slice(b"Exif\0\0");
+    segment.extend_from_slice(tiff);
+    Ok(segment)
+}
+
+/// Rewrites the MP Entry offsets of an MPF segment after the data behind
+/// it grew by `delta` bytes. MPF offsets are relative to the MPF header,
+/// so they only change when something between the MPF segment and the
+/// secondary images changes size. Returns `None` if the MPF data cannot
+/// be parsed; the segment is then copied unchanged.
+fn patch_mpf(segment: &[u8], delta: i64) -> Option<Vec<u8>> {
+    // FF E2 len(2) "MPF\0" then a TIFF structure.
+    let mp_start = 8usize;
+    let mp = segment.get(mp_start..)?;
+    let header = TiffHeader::parse(mp).ok()?;
+    let order = header.byte_order;
+    let reader = Reader::new(mp, order);
+    let ifd = RawIfd::parse(reader, header.ifd0_offset)?;
+    let entry = ifd.entries().find(|e| e.tag == MP_ENTRY)?;
+    let at = usize::try_from(entry.data_offset().ok()?).ok()?;
+    let len = usize::try_from(entry.byte_len().ok()?).ok()?;
+    let mut out = segment.to_vec();
+    for index in 0..len / 16 {
+        // Each 16-byte MP Entry: attributes, size, offset, two dependents.
+        let field = mp_start
+            .checked_add(at)?
+            .checked_add(index.checked_mul(16)?)?
+            .checked_add(8)?;
+        let bytes: [u8; 4] = out.get(field..field.checked_add(4)?)?.try_into().ok()?;
+        let offset = order.u32(bytes);
+        // Offset 0 is the primary image itself.
+        if offset == 0 {
+            continue;
+        }
+        let moved = u32::try_from(i64::from(offset).checked_add(delta)?).ok()?;
+        let encoded = match order {
+            ByteOrder::LittleEndian => moved.to_le_bytes(),
+            ByteOrder::BigEndian => moved.to_be_bytes(),
+        };
+        out.get_mut(field..field.checked_add(4)?)?
+            .copy_from_slice(&encoded);
+    }
+    Some(out)
+}
+
+/// Replaces the Exif APP1 segment with one holding `tiff`, inserting it
+/// after any JFIF/JFXX APP0 segments if there is none, or removes every
+/// Exif APP1 segment when `tiff` is `None`. Everything else is copied
+/// verbatim; MPF offsets are adjusted when the change sits behind them.
+pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
+    let (segments, rest) = segments(data)?;
+    let new_segment = tiff.map(exif_segment).transpose()?;
+    let target = segments.iter().position(|s| is_exif(data, s));
+    let insert_at = match (target, &new_segment) {
+        (None, Some(_)) => Some(
+            segments
+                .iter()
+                .position(|s| s.marker != APP0)
+                .unwrap_or(segments.len()),
+        ),
+        _ => None,
+    };
+
+    // What each segment becomes, and how the size behind MPF changes.
+    let mpf = segments.iter().position(|s| is_mpf(data, s));
+    let mut delta: i64 = 0;
+    let size = |bytes: usize| i64::try_from(bytes).unwrap_or(i64::MAX);
+    let mut plan: Vec<Option<&[u8]>> = Vec::with_capacity(segments.len());
+    for (index, segment) in segments.iter().enumerate() {
+        let original = data.get(segment.start..segment.end).unwrap_or_default();
+        let replaced: Option<&[u8]> = if Some(index) == target {
+            new_segment.as_deref()
+        } else if is_exif(data, segment) && new_segment.is_none() {
+            None
+        } else {
+            Some(original)
+        };
+        if mpf.is_some_and(|m| index > m) {
+            delta = delta
+                .saturating_add(size(replaced.map_or(0, <[u8]>::len)))
+                .saturating_sub(size(original.len()));
+        }
+        plan.push(replaced);
+    }
+    if let (Some(at), Some(segment)) = (insert_at, &new_segment)
+        && mpf.is_some_and(|m| at > m)
+    {
+        delta = delta.saturating_add(size(segment.len()));
+    }
+    let patched_mpf = mpf
+        .filter(|_| delta != 0)
+        .and_then(|m| segments.get(m))
+        .and_then(|s| {
+            patch_mpf(data.get(s.marker_at..s.end)?, delta).map(|p| (s.start, s.marker_at, p))
+        });
+
+    let mut out = Vec::with_capacity(
+        data.len()
+            .saturating_add(new_segment.as_ref().map_or(0, Vec::len)),
+    );
+    out.extend_from_slice(&SOI);
+    for (index, (segment, bytes)) in segments.iter().zip(&plan).enumerate() {
+        if Some(index) == insert_at
+            && let Some(new) = &new_segment
+        {
+            out.extend_from_slice(new);
+        }
+        match (&patched_mpf, bytes) {
+            (Some((start, marker_at, patched)), Some(_)) if *start == segment.start => {
+                out.extend_from_slice(data.get(*start..*marker_at).unwrap_or_default());
+                out.extend_from_slice(patched);
+            }
+            (_, Some(bytes)) => out.extend_from_slice(bytes),
+            (_, None) => {}
+        }
+    }
+    if insert_at == Some(segments.len())
+        && let Some(new) = &new_segment
+    {
+        out.extend_from_slice(new);
+    }
+    out.extend_from_slice(data.get(rest..).unwrap_or_default());
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
@@ -221,5 +464,140 @@ mod tests {
         assert_eq!(find(&[0xFF, 0xD8, 0xFF, 0xE1, 0, 0]).0, None);
         assert_eq!(find(&[0xFF, 0xD8, 0x00, 0x00]).0, None);
         assert_eq!(find(&[0xFF, 0xD8, 0xFF, 0xFF, 0xFF]).0, None);
+    }
+}
+
+#[cfg(test)]
+mod splice_tests {
+    use alloc::vec;
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    const TIFF_A: &[u8] = b"II*\0\x08\0\0\0\0\0\0\0\0\0";
+    const TIFF_B: &[u8] = b"MM\0*\0\0\0\x08\0\0\0\0\0\0";
+
+    fn segment(marker: u8, payload: &[u8]) -> Vec<u8> {
+        let mut out = vec![0xFF, marker];
+        out.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+        out.extend_from_slice(payload);
+        out
+    }
+
+    fn exif(tiff: &[u8]) -> Vec<u8> {
+        let mut payload = b"Exif\0\0".to_vec();
+        payload.extend_from_slice(tiff);
+        segment(APP1, &payload)
+    }
+
+    /// SOI, the given segments, then a scan with entropy data and EOI.
+    fn jpeg(segments: &[Vec<u8>]) -> Vec<u8> {
+        let mut out = SOI.to_vec();
+        for s in segments {
+            out.extend_from_slice(s);
+        }
+        out.extend_from_slice(&[0xFF, SOS, 0, 4, 1, 2, 0xAB, 0xFF, 0x00, 0xCD, 0xFF, EOI]);
+        out
+    }
+
+    fn jfif() -> Vec<u8> {
+        segment(APP0, b"JFIF\0\x01\x02")
+    }
+
+    #[test]
+    fn replaces_exif_in_place() {
+        let dqt = segment(0xDB, &[0; 5]);
+        let original = jpeg(&[jfif(), exif(TIFF_A), dqt.clone()]);
+        let out = splice(&original, Some(TIFF_B)).unwrap();
+        assert_eq!(out, jpeg(&[jfif(), exif(TIFF_B), dqt]));
+    }
+
+    #[test]
+    fn inserts_after_jfif() {
+        let dqt = segment(0xDB, &[0; 5]);
+        let out = splice(&jpeg(&[jfif(), dqt.clone()]), Some(TIFF_A)).unwrap();
+        assert_eq!(out, jpeg(&[jfif(), exif(TIFF_A), dqt.clone()]));
+        // Without JFIF it goes right after SOI.
+        let out = splice(&jpeg(core::slice::from_ref(&dqt)), Some(TIFF_A)).unwrap();
+        assert_eq!(out, jpeg(&[exif(TIFF_A), dqt]));
+    }
+
+    #[test]
+    fn removes_every_exif_segment_and_keeps_xmp() {
+        let xmp = segment(APP1, b"http://ns.adobe.com/xap/1.0/\0<x/>");
+        let original = jpeg(&[jfif(), exif(TIFF_A), xmp.clone(), exif(TIFF_B)]);
+        assert_eq!(
+            splice(&original, None).unwrap(),
+            jpeg(&[jfif(), xmp.clone()])
+        );
+        // Writing keeps a duplicate as it was: only the first is replaced.
+        let out = splice(&original, Some(TIFF_B)).unwrap();
+        assert_eq!(out, jpeg(&[jfif(), exif(TIFF_B), xmp, exif(TIFF_B)]));
+    }
+
+    #[test]
+    fn too_large_is_an_error_not_a_corrupt_file() {
+        let original = jpeg(&[jfif()]);
+        let big = vec![0u8; MAX_TIFF + 1];
+        assert!(matches!(
+            splice(&original, Some(&big)),
+            Err(Error::TooLarge { max: MAX_TIFF, .. })
+        ));
+        assert!(splice(&original, Some(&big[..MAX_TIFF])).is_ok());
+    }
+
+    /// An MPF segment whose MP Index lists the primary image (offset 0) and
+    /// one secondary image at `offset`.
+    fn mpf(offset: u32) -> Vec<u8> {
+        let mut tiff = b"MM\0*\0\0\0\x08".to_vec();
+        tiff.extend_from_slice(&1u16.to_be_bytes());
+        // MPEntry: UNDEFINED, 32 bytes at offset 26.
+        tiff.extend_from_slice(&[0xB0, 0x02, 0, 7, 0, 0, 0, 32, 0, 0, 0, 26]);
+        tiff.extend_from_slice(&0u32.to_be_bytes());
+        for entry_offset in [0u32, offset] {
+            tiff.extend_from_slice(&[0; 8]);
+            tiff.extend_from_slice(&entry_offset.to_be_bytes());
+            tiff.extend_from_slice(&[0; 4]);
+        }
+        let mut payload = b"MPF\0".to_vec();
+        payload.extend_from_slice(&tiff);
+        segment(APP2, &payload)
+    }
+
+    fn mpf_offset(data: &[u8]) -> u32 {
+        let (segments, _) = segments(data).unwrap();
+        let s = segments.iter().find(|s| is_mpf(data, s)).unwrap();
+        let mp = &data[s.marker_at + 8..s.end];
+        u32::from_be_bytes(mp[26 + 16 + 8..26 + 16 + 12].try_into().unwrap())
+    }
+
+    #[test]
+    fn mpf_offsets_follow_exif_growth_behind_them() {
+        // Exif after MPF: the secondary image moves, so its offset changes.
+        let original = jpeg(&[mpf(1000), exif(TIFF_A)]);
+        let bigger = [TIFF_A, &[0u8; 10]].concat();
+        let out = splice(&original, Some(&bigger)).unwrap();
+        assert_eq!(mpf_offset(&out), 1010);
+        assert_eq!(
+            mpf_offset(&splice(&original, None).unwrap()),
+            1000 - exif(TIFF_A).len() as u32
+        );
+        // Exif before MPF: both move together, so nothing changes.
+        let original = jpeg(&[exif(TIFF_A), mpf(1000)]);
+        assert_eq!(mpf_offset(&splice(&original, Some(&bigger)).unwrap()), 1000);
+    }
+
+    #[test]
+    fn scan_data_is_copied_verbatim_and_broken_files_refused() {
+        let original = jpeg(&[jfif()]);
+        let out = splice(&original, Some(TIFF_A)).unwrap();
+        let scan = original.iter().position(|&b| b == SOS).unwrap() - 1;
+        assert!(out.ends_with(&original[scan..]));
+        let mut cut = jpeg(&[jfif(), exif(TIFF_A)]);
+        cut.truncate(8);
+        assert!(matches!(
+            splice(&cut, Some(TIFF_B)),
+            Err(Error::Malformed { .. })
+        ));
     }
 }

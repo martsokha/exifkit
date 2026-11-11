@@ -1,5 +1,6 @@
 //! Writing an [`Exif`] back into a TIFF block. See `docs/writing.md`.
 
+mod file;
 mod plan;
 #[cfg(test)]
 mod tests;
@@ -7,6 +8,7 @@ mod value;
 
 use alloc::vec::Vec;
 
+pub use self::file::remove_exif;
 use crate::error::Result;
 use crate::model::Exif;
 use crate::tiff::ByteOrder;

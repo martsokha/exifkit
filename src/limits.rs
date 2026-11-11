@@ -15,7 +15,8 @@ pub struct Limits {
     pub max_ifds: u16,
     /// Maximum number of entries in a single IFD.
     pub max_entries: u16,
-    /// Maximum number of SubIFDs referenced by one pointer tag.
+    /// Maximum number of SubIFDs one IFD references, across all of its
+    /// SubIFDs tags (a duplicate tag adds to the same IFD's list).
     pub max_sub_ifds: u16,
     /// Maximum number of bytes allocated while building the model, or `None`
     /// to derive it from the input (4 × input length + 64 KiB).
@@ -70,7 +71,7 @@ impl fmt::Display for Limit {
             Self::Depth => "ifd nesting depth",
             Self::Ifds => "number of ifds",
             Self::Entries => "entries per ifd",
-            Self::SubIfds => "sub-ifds per pointer",
+            Self::SubIfds => "sub-ifds per ifd",
             Self::Alloc => "allocation budget",
         })
     }

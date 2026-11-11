@@ -1122,7 +1122,14 @@ impl<'a, 'o> Walker<'a, 'o> {
         };
         let depth = depth.saturating_add(1);
         if let IfdKind::SubIfd(_) = target {
-            let max = usize::from(self.options.limits.max_sub_ifds);
+            // Per parent, not per tag: the writer merges duplicate SubIFDs
+            // tags into one, which must read back with the same children.
+            let existing = self
+                .sub_ifd_slots
+                .values()
+                .filter(|(parent, _)| *parent == kind)
+                .count();
+            let max = usize::from(self.options.limits.max_sub_ifds).saturating_sub(existing);
             if offsets.len() > max {
                 self.report(
                     Diagnostic::new(DiagnosticKind::LimitExceeded(Limit::SubIfds))
