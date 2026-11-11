@@ -60,8 +60,15 @@ jobs:
           key: ${{ runner.os }}-cargo-fuzz-${{ hashFiles('fuzz/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-fuzz-
 
+      # The prebuilt cargo-fuzz is a static musl binary and defaults to the
+      # musl target it was built for, which the sanitizers cannot use. Build
+      # for the runner's own target instead.
       - name: Run ${{ matrix.target }}
-        run: cargo +nightly fuzz run ${{ matrix.target }} -- -rss_limit_mb=256 -max_total_time=600
+        # A single allocation over 64 MB fails the run: that is how
+        # amplification bugs show up. Total RSS keeps libFuzzer's default
+        # (2 GB), since AddressSanitizer's quarantine and shadow memory grow
+        # with the run, not with exifkit's allocations.
+        run: cargo +nightly fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} -- -malloc_limit_mb=64 -max_total_time=600
 
       - name: Upload crash artifacts
         if: failure()
