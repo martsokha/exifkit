@@ -12,8 +12,9 @@ and every loop has an upper bound.
 
 ## Implementation status
 
-Reading is implemented for JPEG, TIFF, PNG (including `png-legacy`) and
-WebP in `src/container/`. HEIF and JPEG XL are detected but return
+Reading and writing are implemented for JPEG, TIFF, PNG (reading includes
+`png-legacy`) and WebP in `src/container/`; `Exif::write_into` and
+`remove_exif` are the entry points (`src/write/file.rs`). HEIF and JPEG XL are detected but return
 `Error::Unsupported` until M3. Each scanner works over an internal
 `Input` trait, implemented for byte slices and for `Read + Seek` streams,
 so `Exif::read` and `Exif::read_from` share one code path and fuzzing
@@ -31,6 +32,26 @@ What we do differently from this design:
 - **TIFF streams:** `read_from` reads a TIFF file whole, because the
   parse layer works on a slice. Seeking only to the IFDs is a later
   optimisation.
+- **Writing TIFF** doesn't use a separate append strategy. A TIFF file is
+  its own TIFF block, so the writer's minimal-diff layout (with the file
+  as the source) keeps image data in place and only rewrites metadata.
+  This works for TIFF-based raw files too, and is verified on DNG.
+  `remove_exif` refuses TIFF, since its metadata is the file's structure.
+- **JPEG:** an Exif block over 65,527 bytes is `Error::TooLarge`. We never
+  shrink it silently. Duplicate Exif APP1 segments are kept on write (only
+  the first is replaced) and removed by `remove_exif`. MPF offsets are
+  patched only when the Exif segment changes size behind the MPF
+  segment.
+- **PNG:** writing keeps a single `eXIf`. Extra `eXIf` chunks and the
+  legacy raw-profile Exif chunks are removed, because they would
+  contradict the new data.
+- **WebP:** a simple file is converted to VP8X with the canvas size from
+  the bitstream. If the bitstream gives no canvas size, the result is
+  `Error::Unsupported`. `remove_exif` clears the flag but keeps VP8X.
+- **Verified on the corpus:** writing back changes no byte outside the
+  Exif data (`remove_exif` of the original equals `remove_exif` of the
+  rewrite, on 115 files). `exiftool -validate` reports no new warnings
+  after an edit, on 127 files.
 
 ## Summary
 

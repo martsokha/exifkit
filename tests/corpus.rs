@@ -687,36 +687,48 @@ fn exiftool_tags(file: &Path) -> Option<std::collections::BTreeMap<String, Vec<(
     Some(tags)
 }
 
-/// Puts `tiff` in place of the original TIFF block. For JPEG the block keeps
-/// its position, so file-relative offsets inside MakerNotes stay valid.
-fn splice(data: &[u8], tiff: &[u8]) -> Option<Vec<u8>> {
-    let (located, _) = exifkit::container::locate(data).ok()?;
-    let range = located.exif?;
-    let start = usize::try_from(range.start).ok()?;
-    let end = usize::try_from(range.end).ok()?;
-    match located.format {
-        exifkit::Format::Tiff => Some(tiff.to_vec()),
-        exifkit::Format::Jpeg => {
-            if data.get(start.checked_sub(6)?..start)? != b"Exif\0\0"
-                || data.get(start.checked_sub(10)?..start - 8)? != [0xFF, 0xE1]
-            {
-                return None;
-            }
-            let len = u16::try_from(8 + tiff.len()).ok()?;
-            let mut out = data.get(..start - 8)?.to_vec();
-            out.extend_from_slice(&len.to_be_bytes());
-            out.extend_from_slice(b"Exif\0\0");
-            out.extend_from_slice(tiff);
-            out.extend_from_slice(data.get(end..)?);
-            Some(out)
-        }
-        _ => None,
+/// `exiftool -validate` warnings, one per occurrence (`[x3]` counts three),
+/// with numbers masked so the same warning at another offset still matches.
+fn validate(file: &Path) -> Option<Vec<String>> {
+    let output = std::process::Command::new("exiftool")
+        .args(["-validate", "-warning", "-a", "-s3"])
+        .arg(file)
+        .output()
+        .ok()?;
+    let text = String::from_utf8(output.stdout).ok()?;
+    let mask = |s: &str| {
+        s.split(' ')
+            .map(|word| {
+                if word.chars().all(|c| c.is_ascii_digit()) && !word.is_empty() {
+                    "N"
+                } else {
+                    word
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let mut warnings = Vec::new();
+    // The first line is the "N Warnings" summary.
+    for line in text
+        .lines()
+        .skip(1)
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+    {
+        let (warning, times) = match line.rsplit_once(" [x") {
+            Some((warning, count)) => (warning, count.trim_end_matches(']').parse().unwrap_or(1)),
+            None => (line, 1),
+        };
+        warnings.extend(std::iter::repeat_n(mask(warning), times));
     }
+    Some(warnings)
 }
 
 /// After an edit (a long new `ImageDescription`, which moves data around),
 /// ExifTool must read the file exactly like the original apart from that
 /// edit: every EXIF and MakerNotes tag, so vendor MakerNotes still decode.
+/// The rewrite must also add no `exiftool -validate` warnings.
 /// Needs `exiftool` on PATH and `cargo xtask fixtures`.
 ///
 /// Not compared: `ThumbnailOffset` (the thumbnail moves; its bytes are
@@ -767,11 +779,6 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
         let Ok((exif, _)) = Exif::read(&data) else {
             continue;
         };
-        let Some((located, _)) = exifkit::container::locate(&data).ok() else {
-            continue;
-        };
-        let Some(range) = located.exif else { continue };
-        let source = &data[range.start as usize..(range.end as usize).min(data.len())];
         // An edit that forces relocation: a long new value in IFD0. It must
         // be the only difference ExifTool sees.
         let description = "exifkit ".repeat(40);
@@ -786,10 +793,7 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
         {
             continue;
         }
-        let Ok(tiff) = edited.to_tiff_with(&exifkit::WriteOptions::DEFAULT.source(source)) else {
-            continue;
-        };
-        let Some(file) = splice(&data, &tiff) else {
+        let Ok(file) = edited.write_into(&data) else {
             continue;
         };
         // Keep the extension: ExifTool names some tags by file type.
@@ -847,10 +851,94 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
         for key in after.keys().filter(|k| !before.contains_key(*k)) {
             let _ = writeln!(report, "{}: {key} added", rel.display());
         }
+        // The rewrite must not add `exiftool -validate` warnings.
+        let (Some(before), Some(after)) = (validate(&original), validate(&written)) else {
+            continue;
+        };
+        for warning in after.iter().filter(|w| {
+            after.iter().filter(|x| x == w).count() > before.iter().filter(|x| x == w).count()
+        }) {
+            let _ = writeln!(
+                report,
+                "{}: new validation warning: {warning}",
+                rel.display()
+            );
+        }
     }
     eprintln!("exiftool: compared {tags} tags in {checked} rewritten files");
     assert!(
         report.is_empty(),
         "ExifTool reads rewritten files differently:\n{report}"
     );
+}
+
+/// Writing into the original file, unedited, gives back the same model, and
+/// every byte outside the Exif data is untouched: stripping Exif from the
+/// original and from the rewrite gives identical files.
+#[test]
+fn write_into_round_trips_and_keeps_image_data() {
+    let root = root();
+    let mut paths = Vec::new();
+    goldens(&root.join("tests/golden"), &mut paths);
+    paths.sort();
+    let external = root.join("tests/fixtures/external");
+    let (mut written, mut untouched, mut refused) = (0, 0, 0);
+    let mut report = String::new();
+    for path in &paths {
+        let rel = path
+            .strip_prefix(root.join("tests/golden"))
+            .unwrap()
+            .with_extension("");
+        let Ok(data) = std::fs::read(external.join(&rel)) else {
+            continue;
+        };
+        let Ok((exif, _)) = Exif::read(&data) else {
+            continue;
+        };
+        let name = rel.display();
+        let out = match exif.write_into(&data) {
+            Ok(out) => out,
+            Err(exifkit::Error::Unsupported { .. }) => {
+                refused += 1;
+                continue;
+            }
+            Err(err) => {
+                let _ = writeln!(report, "{name}: write_into failed: {err}");
+                continue;
+            }
+        };
+        written += 1;
+        let source = exifkit::container::locate(&data)
+            .ok()
+            .and_then(|(located, _)| {
+                let range = located
+                    .exif
+                    .filter(|_| located.encoding == exifkit::container::Encoding::Raw)?;
+                let block = data.get(range.start as usize..(range.end as usize).min(data.len()))?;
+                Some(block.strip_prefix(b"Exif\0\0").unwrap_or(block).to_vec())
+            });
+        let expected = match &source {
+            Some(source) => writable_with_source(&exif, source),
+            None => writable(&exif),
+        };
+        match Exif::read(&out) {
+            Ok((back, _)) if back == expected => {}
+            Ok(_) => {
+                let _ = writeln!(report, "{name}: model changed");
+            }
+            Err(err) => {
+                let _ = writeln!(report, "{name}: rewritten file unreadable: {err}");
+            }
+        }
+        if let (Ok(before), Ok(after)) = (exifkit::remove_exif(&data), exifkit::remove_exif(&out)) {
+            untouched += 1;
+            if before != after {
+                let _ = writeln!(report, "{name}: bytes outside the Exif data changed");
+            }
+        }
+    }
+    eprintln!(
+        "corpus: wrote {written} files back ({untouched} checked byte for byte outside Exif); {refused} unsupported"
+    );
+    assert!(report.is_empty(), "write_into failures:\n{report}");
 }

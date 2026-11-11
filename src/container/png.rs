@@ -1,11 +1,12 @@
 //! PNG: Exif lives in the `eXIf` chunk (PNG 3rd edition), or in older files
 //! in a "Raw profile type exif" text chunk written by ImageMagick.
 
+use alloc::vec::Vec;
 use core::ops::Range;
 
 use super::{Encoding, Format, Input, Located, truncated};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics};
-use crate::error::Result;
+use crate::error::{Error, Result};
 
 const SIGNATURE: [u8; 8] = *b"\x89PNG\r\n\x1a\n";
 /// Largest chunk length the PNG spec allows.
@@ -289,6 +290,140 @@ pub(super) fn decode_raw_profile(
     Ok(out)
 }
 
+/// A chunk as byte offsets into the file: `start..end` covers length,
+/// type, data and CRC.
+struct Span {
+    kind: [u8; 4],
+    start: usize,
+    end: usize,
+}
+
+fn malformed(offset: usize, reason: &'static str) -> Error {
+    Error::Malformed {
+        offset: u64::try_from(offset).unwrap_or(u64::MAX),
+        reason,
+    }
+}
+
+/// Splits a PNG into its chunks, through IEND. Returns them and where the
+/// bytes after IEND (copied verbatim) start.
+fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
+    if data.get(..8) != Some(&SIGNATURE[..]) {
+        return Err(malformed(0, "not a PNG"));
+    }
+    let mut spans = Vec::new();
+    let mut at = 8usize;
+    while at < data.len() {
+        let Some(&[l0, l1, l2, l3, k0, k1, k2, k3]) = data.get(at..at.saturating_add(8)) else {
+            return Err(malformed(at, "truncated PNG chunk"));
+        };
+        let len = u32::from_be_bytes([l0, l1, l2, l3]);
+        if len > MAX_CHUNK {
+            return Err(malformed(at, "invalid PNG chunk length"));
+        }
+        let end = at
+            .saturating_add(12)
+            .saturating_add(usize::try_from(len).unwrap_or(usize::MAX));
+        if end > data.len() {
+            return Err(malformed(at, "truncated PNG chunk"));
+        }
+        let kind = [k0, k1, k2, k3];
+        spans.push(Span {
+            kind,
+            start: at,
+            end,
+        });
+        at = end;
+        if &kind == b"IEND" {
+            break;
+        }
+    }
+    Ok((spans, at))
+}
+
+/// Whether a text chunk carries an Exif raw profile.
+fn is_raw_profile(data: &[u8], span: &Span) -> bool {
+    if !matches!(&span.kind, b"tEXt" | b"zTXt" | b"iTXt") {
+        return false;
+    }
+    let chunk = Chunk {
+        kind: span.kind,
+        data: u64::try_from(span.start.saturating_add(8)).unwrap_or(u64::MAX)
+            ..u64::try_from(span.end.saturating_sub(4)).unwrap_or(0),
+        crc: None,
+    };
+    raw_profile(&mut super::Slice(data), &chunk)
+        .ok()
+        .flatten()
+        .is_some()
+}
+
+/// An `eXIf` chunk holding `tiff`.
+fn exif_chunk(tiff: &[u8]) -> Result<Vec<u8>> {
+    let len = u32::try_from(tiff.len())
+        .ok()
+        .filter(|&len| len <= MAX_CHUNK)
+        .ok_or(Error::TooLarge {
+            size: tiff.len(),
+            max: MAX_CHUNK as usize,
+        })?;
+    let mut chunk = Vec::with_capacity(tiff.len().saturating_add(12));
+    chunk.extend_from_slice(&len.to_be_bytes());
+    chunk.extend_from_slice(b"eXIf");
+    chunk.extend_from_slice(tiff);
+    chunk.extend_from_slice(&crc32(&[b"eXIf", tiff]).to_be_bytes());
+    Ok(chunk)
+}
+
+/// Replaces the `eXIf` chunk with one holding `tiff` (inserting it before
+/// the first IDAT if there is none), or removes it when `tiff` is `None`.
+/// PNG allows one `eXIf`, so extra ones are removed, and legacy raw-profile
+/// Exif text chunks are removed too: left in place they would contradict
+/// the new data. Everything else is copied verbatim.
+pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
+    let (spans, rest) = spans(data)?;
+    let new_chunk = tiff.map(exif_chunk).transpose()?;
+    let target = spans.iter().position(|s| &s.kind == b"eXIf");
+    let insert_at = match (target, &new_chunk) {
+        (None, Some(_)) => Some(
+            spans
+                .iter()
+                .position(|s| &s.kind == b"IDAT" || &s.kind == b"IEND")
+                .unwrap_or(spans.len()),
+        ),
+        _ => None,
+    };
+    let mut out = Vec::with_capacity(
+        data.len()
+            .saturating_add(new_chunk.as_ref().map_or(0, Vec::len)),
+    );
+    out.extend_from_slice(&SIGNATURE);
+    for (index, span) in spans.iter().enumerate() {
+        if Some(index) == insert_at
+            && let Some(new) = &new_chunk
+        {
+            out.extend_from_slice(new);
+        }
+        if Some(index) == target {
+            if let Some(new) = &new_chunk {
+                out.extend_from_slice(new);
+            }
+            continue;
+        }
+        if &span.kind == b"eXIf" || is_raw_profile(data, span) {
+            continue;
+        }
+        out.extend_from_slice(data.get(span.start..span.end).unwrap_or_default());
+    }
+    if insert_at == Some(spans.len())
+        && let Some(new) = &new_chunk
+    {
+        out.extend_from_slice(new);
+    }
+    out.extend_from_slice(data.get(rest..).unwrap_or_default());
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
@@ -412,5 +547,100 @@ mod tests {
         );
         assert!(decode_raw_profile(b"\nexif\n   99\n4949\n", false, 1 << 20).is_err());
         assert!(decode_raw_profile(b"\nexif\n   8\n49492a0008000000\n", false, 4).is_err());
+    }
+}
+
+#[cfg(test)]
+mod splice_tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::container::Slice;
+
+    const TIFF: &[u8] = b"II*\0\x08\0\0\0\0\0\0\0\0\0";
+    const OTHER: &[u8] = b"MM\0*\0\0\0\x08\0\0\0\0\0\0";
+
+    fn chunk(kind: &[u8; 4], data: &[u8]) -> Vec<u8> {
+        let mut out = u32::try_from(data.len()).unwrap().to_be_bytes().to_vec();
+        out.extend_from_slice(kind);
+        out.extend_from_slice(data);
+        out.extend_from_slice(&crc32(&[kind, data]).to_be_bytes());
+        out
+    }
+
+    fn png(chunks: &[Vec<u8>]) -> Vec<u8> {
+        let mut out = SIGNATURE.to_vec();
+        for c in chunks {
+            out.extend_from_slice(c);
+        }
+        out.extend(chunk(b"IEND", b""));
+        out
+    }
+
+    fn crcs_valid(data: &[u8]) -> bool {
+        let (spans, _) = spans(data).unwrap();
+        spans.iter().all(|s| {
+            let body = &data[s.start + 4..s.end - 4];
+            let crc = u32::from_be_bytes(data[s.end - 4..s.end].try_into().unwrap());
+            crc32(&[body]) == crc
+        })
+    }
+
+    #[test]
+    fn replaces_in_place_and_inserts_before_idat() {
+        let ihdr = chunk(b"IHDR", &[0; 13]);
+        let idat = chunk(b"IDAT", b"pixels");
+        let original = png(&[ihdr.clone(), chunk(b"eXIf", TIFF), idat.clone()]);
+        let out = splice(&original, Some(OTHER)).unwrap();
+        assert_eq!(
+            out,
+            png(&[ihdr.clone(), chunk(b"eXIf", OTHER), idat.clone()])
+        );
+        assert!(crcs_valid(&out));
+        let out = splice(&png(&[ihdr.clone(), idat.clone()]), Some(TIFF)).unwrap();
+        assert_eq!(out, png(&[ihdr, chunk(b"eXIf", TIFF), idat]));
+    }
+
+    #[test]
+    fn legacy_profiles_and_duplicates_go() {
+        let legacy = chunk(
+            b"tEXt",
+            b"Raw profile type exif\0\nexif\n   8\n49492a0008000000\n",
+        );
+        let comment = chunk(b"tEXt", b"Comment\0hello");
+        let idat = chunk(b"IDAT", b"pixels");
+        let original = png(&[
+            legacy,
+            comment.clone(),
+            chunk(b"eXIf", TIFF),
+            idat.clone(),
+            chunk(b"eXIf", TIFF),
+        ]);
+        let out = splice(&original, Some(OTHER)).unwrap();
+        assert_eq!(
+            out,
+            png(&[comment.clone(), chunk(b"eXIf", OTHER), idat.clone()])
+        );
+        assert_eq!(splice(&original, None).unwrap(), png(&[comment, idat]));
+        let mut diagnostics = Diagnostics::default();
+        assert!(
+            locate(
+                &mut Slice(&splice(&original, None).unwrap()),
+                &mut diagnostics
+            )
+            .unwrap()
+            .exif
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn broken_files_are_refused() {
+        let mut cut = png(&[chunk(b"IDAT", b"pixels")]);
+        cut.truncate(cut.len() - 14);
+        assert!(matches!(
+            splice(&cut, Some(TIFF)),
+            Err(Error::Malformed { .. })
+        ));
     }
 }

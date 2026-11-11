@@ -99,12 +99,13 @@ src/
     mod.rs            WriteOptions, MakerNotePolicy, Exif::to_tiff / to_tiff_with / encoded_len
     plan.rs           layout planning (allocator, reserved and pinned ranges) and serialization
     value.rs          value encoding (the inverse of Value::decode)
+    file.rs           Exif::write_into / write_into_with, remove_exif
   container/
     mod.rs            Format, detect(), locate(), Located, Encoding
     input.rs          Input: slices and Read + Seek streams, one code path
-    jpeg.rs  png.rs  webp.rs
+    jpeg.rs  png.rs  webp.rs   locate (read) and splice (write) per format
   (planned)
-  container/          writing for each format; heif, jxl                M2–M3
+  container/heif, jxl  HEIF/AVIF and JPEG XL                            M3
 examples/dump.rs      prints every entry and diagnostic in a file
 xtask/                codegen, fixture download, ExifTool goldens
 data/tags.toml        source of truth for the tag table
@@ -186,7 +187,7 @@ The parser follows these rules, and fuzzing (see
    default 8), never recursion. Every entry also charges its in-memory
    size against `Limits::max_alloc`. Without that, overlapping IFDs could
    multiply a small input into many entries. Caps also apply to the number of IFDs
-   (default 256), entries per IFD (default 4096) and SubIFDs per pointer
+   (default 256), entries per IFD (default 4096) and SubIFDs per IFD
    (default 64).
 5. **Partial results.** When a sub-IFD is broken, it is recorded as
    `IfdState::Truncated` or `IfdState::Invalid` along with a diagnostic,

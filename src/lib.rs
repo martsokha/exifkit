@@ -37,4 +37,4 @@ pub use crate::model::{Entry, Exif, Ifd, ReadOptions};
 pub use crate::tag::{Namespace, Tag};
 pub use crate::text::{Copyright, EncodedText, TextEncoding};
 pub use crate::value::{FromValue, Rational, SRational, Value, ValueError};
-pub use crate::write::{MakerNotePolicy, WriteOptions};
+pub use crate::write::{MakerNotePolicy, WriteOptions, remove_exif};

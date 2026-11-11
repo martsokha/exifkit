@@ -6,9 +6,9 @@
 
 Read, edit and write Exif metadata in pure Rust.
 
-> **Status:** early development. Reading works for JPEG, TIFF (including
-> DNG and other TIFF-based raw files), PNG and WebP. Editing and writing the
-> Exif block work; writing it back into image files is in progress. See
+> **Status:** early development. Reading, editing and writing work for JPEG,
+> TIFF (including DNG and other TIFF-based raw files), PNG and WebP. HEIF/AVIF
+> and JPEG XL are next. See
 > [`docs/`](https://github.com/martsokha/exifkit/tree/main/docs) for the
 > design and [`docs/roadmap.md`](https://github.com/martsokha/exifkit/blob/main/docs/roadmap.md)
 > for progress.
@@ -22,15 +22,17 @@ Read, edit and write Exif metadata in pure Rust.
   result, not a failed parse.
 - **Read and write in every common container**: JPEG, TIFF, PNG, WebP,
   HEIF/HEIC/AVIF and JPEG XL. Only the metadata segment is rewritten.
-- **Lossless round-trips**: unknown tags, MakerNotes, SubIFDs and
-  thumbnails survive an edit. Rationals are stored exactly.
+- **Lossless edits**: only the Exif data is rewritten, as a minimal diff:
+  unchanged values, MakerNotes and data exifkit does not understand keep
+  their offsets, so vendor MakerNotes still decode. Removed data is zeroed,
+  not left behind. Rationals are stored exactly.
 - **Small**: no dependencies by default, and `no_std + alloc` compatible.
 
 ## Usage
 
 ```rust,no_run
 use exifkit::tag::Orientation;
-use exifkit::{Exif, Tag};
+use exifkit::{Entry, Exif, IfdKind, Tag, Value};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // JPEG, TIFF, PNG or WebP; the format is detected. `Exif::read_from`
@@ -50,6 +52,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for diagnostic in &diagnostics {
         eprintln!("warning: {diagnostic}");
     }
+
+    // Edit and write back. Only the Exif data changes: image data, the
+    // MakerNote and everything exifkit does not understand stay as they were.
+    let mut exif = exif;
+    exif.insert(Entry::new(Tag::ARTIST, Value::ascii("Jane Doe")))?;
+    exif.remove_ifd(IfdKind::Gps); // strip the location
+    std::fs::write("photo.jpg", exif.write_into(&data)?)?;
     Ok(())
 }
 ```

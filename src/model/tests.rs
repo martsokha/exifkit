@@ -532,6 +532,35 @@ fn tracked_maker_note_follows_sub_ifd_renumbering() {
 }
 
 #[test]
+fn sub_ifd_limit_is_per_parent_across_duplicate_tags() {
+    // Found by fuzzing: two SubIFDs tags each under the limit gave one IFD
+    // more children than the limit; the writer merges them into one tag,
+    // which then read back truncated.
+    let mut t = Tiff::new();
+    let children: Vec<u32> = (1..=3)
+        .map(|w| t.ifd(&[(0x0100, SHORT, 1, w)], 0))
+        .collect();
+    let first = t.blob(&[children[0], children[1]].map(u32::to_le_bytes).concat());
+    let ifd0 = t.ifd(
+        &[(0x014A, LONG, 2, first), (0x014A, LONG, 1, children[2])],
+        0,
+    );
+    let mut limits = Limits::DEFAULT;
+    limits.max_sub_ifds = 2;
+    let options = ReadOptions::DEFAULT.limits(limits);
+    let (exif, diagnostics) = Exif::from_tiff_with(&t.root(ifd0), &options).unwrap();
+    assert!(diagnostics.contains(DiagnosticKind::LimitExceeded(Limit::SubIfds)));
+    let subs = exif
+        .ifds()
+        .iter()
+        .filter(|i| matches!(i.kind(), IfdKind::SubIfd(_)))
+        .count();
+    assert_eq!(subs, 2);
+    let (back, _) = Exif::from_tiff_with(&exif.to_tiff().unwrap(), &options).unwrap();
+    assert_eq!(back, exif);
+}
+
+#[test]
 fn duplicate_sub_ifd_pointers_number_by_discovery() {
     // Two SubIFDs tags in IFD0; the second one's children must not tie with
     // the first one's (found by fuzzing: the writer merges both lists).
