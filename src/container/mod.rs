@@ -233,15 +233,18 @@ fn finish_detect(
 }
 
 /// Turns a located payload into a TIFF block: decodes PNG raw profiles and
-/// strips an `Exif\0\0` header that some writers add.
+/// strips an `Exif\0\0` header that some writers add. Also returns where
+/// the TIFF block starts within the payload, or `None` if the block was
+/// decoded and so has no position in the file.
 pub(crate) fn tiff_payload<'a>(
     payload: alloc::borrow::Cow<'a, [u8]>,
     encoding: Encoding,
     limit: usize,
     diagnostics: &mut Diagnostics,
-) -> Result<alloc::borrow::Cow<'a, [u8]>> {
+) -> Result<(alloc::borrow::Cow<'a, [u8]>, Option<u64>)> {
     use alloc::borrow::Cow;
 
+    let decoded = encoding != Encoding::Raw;
     let payload = match encoding {
         Encoding::Raw => payload,
         Encoding::PngRawProfile {
@@ -265,14 +268,16 @@ pub(crate) fn tiff_payload<'a>(
         }
     };
     // **quirk:** some PNG and WebP writers keep JPEG's `Exif\0\0` header.
+    let position = |skipped: u64| (!decoded).then_some(skipped);
     if let Some(rest) = payload.strip_prefix(b"Exif\0\0") {
         diagnostics.push(Diagnostic::new(DiagnosticKind::NonStandardExifHeader));
-        return Ok(match payload {
+        let stripped = match payload {
             Cow::Borrowed(all) => Cow::Borrowed(all.get(6..).unwrap_or_default()),
             Cow::Owned(_) => Cow::Owned(rest.to_vec()),
-        });
+        };
+        return Ok((stripped, position(6)));
     }
-    Ok(payload)
+    Ok((payload, position(0)))
 }
 
 /// Reports that the container ends before a structure it declares.
@@ -281,7 +286,7 @@ pub(crate) fn tiff_payload<'a>(
     allow(dead_code)
 )]
 pub(crate) fn truncated(diagnostics: &mut Diagnostics, offset: u64) {
-    diagnostics.push(Diagnostic::new(DiagnosticKind::TruncatedContainer).at_file(offset));
+    diagnostics.push(Diagnostic::new(DiagnosticKind::TruncatedContainer).at(offset));
 }
 
 #[cfg(test)]

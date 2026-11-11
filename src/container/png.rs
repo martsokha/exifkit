@@ -72,16 +72,14 @@ pub(super) fn locate(input: &mut impl Input, diagnostics: &mut Diagnostics) -> R
             b"eXIf" => {
                 check_crc(input, &chunk, diagnostics)?;
                 if found.is_some() {
-                    diagnostics.push(
-                        Diagnostic::new(DiagnosticKind::DuplicateExif).at_file(chunk.data.start),
-                    );
+                    diagnostics
+                        .push(Diagnostic::new(DiagnosticKind::DuplicateExif).at(chunk.data.start));
                     continue;
                 }
                 if seen_idat {
                     // **quirk:** allowed since PNG 3rd edition, but some readers miss it.
                     diagnostics.push(
-                        Diagnostic::new(DiagnosticKind::ExifAfterImageData)
-                            .at_file(chunk.data.start),
+                        Diagnostic::new(DiagnosticKind::ExifAfterImageData).at(chunk.data.start),
                     );
                 }
                 found = Some((chunk.data, Encoding::Raw));
@@ -90,8 +88,7 @@ pub(super) fn locate(input: &mut impl Input, diagnostics: &mut Diagnostics) -> R
                 if let Some(encoding) = raw_profile(input, &chunk)? {
                     if legacy.is_some() {
                         diagnostics.push(
-                            Diagnostic::new(DiagnosticKind::DuplicateExif)
-                                .at_file(chunk.data.start),
+                            Diagnostic::new(DiagnosticKind::DuplicateExif).at(chunk.data.start),
                         );
                     } else {
                         check_crc(input, &chunk, diagnostics)?;
@@ -172,7 +169,7 @@ fn check_crc(input: &mut impl Input, chunk: &Chunk, diagnostics: &mut Diagnostic
         return Ok(());
     }
     if crc32(&[&chunk.kind, &data]) != expected {
-        diagnostics.push(Diagnostic::new(DiagnosticKind::CrcMismatch).at_file(chunk.data.start));
+        diagnostics.push(Diagnostic::new(DiagnosticKind::CrcMismatch).at(chunk.data.start));
     }
     Ok(())
 }

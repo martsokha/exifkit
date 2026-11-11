@@ -353,7 +353,7 @@ pub(crate) fn check_strict(diagnostics: &Diagnostics, options: &ReadOptions) -> 
         Some(first) => Err(match first.kind {
             DiagnosticKind::LimitExceeded(limit) => Error::LimitExceeded(limit),
             kind => Error::Malformed {
-                offset: u64::from(first.offset.unwrap_or(0)),
+                offset: first.offset.unwrap_or(0),
                 reason: kind.reason(),
             },
         }),

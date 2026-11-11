@@ -206,7 +206,7 @@ table, so the set is documented and can be reviewed.
 Reading is lenient by default and returns `(Exif, Diagnostics)`.
 
 ```rust
-pub struct Diagnostic { pub kind: DiagnosticKind, pub ifd: Option<IfdKind>, pub tag: Option<Tag>, pub offset: Option<u32> }
+pub struct Diagnostic { pub kind: DiagnosticKind, pub ifd: Option<IfdKind>, pub tag: Option<Tag>, pub offset: Option<u64> }  // file-relative from Exif::read*
 #[non_exhaustive]
 pub enum DiagnosticKind {
     UnknownType(u16), TypeMismatch { expected: &'static [Type], found: Type },

@@ -56,7 +56,7 @@ pub(super) fn locate(
             if found.is_none() {
                 found = Some(range);
             } else {
-                diagnostics.push(Diagnostic::new(DiagnosticKind::DuplicateExif).at_file(at));
+                diagnostics.push(Diagnostic::new(DiagnosticKind::DuplicateExif).at(at));
             }
         }
         // Chunks are padded to an even length.

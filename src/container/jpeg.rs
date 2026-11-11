@@ -69,7 +69,7 @@ pub(super) fn locate(
         {
             if header.non_standard {
                 diagnostics
-                    .push(Diagnostic::new(DiagnosticKind::NonStandardExifHeader).at_file(payload));
+                    .push(Diagnostic::new(DiagnosticKind::NonStandardExifHeader).at(payload));
             }
             let start = payload.saturating_add(header.len);
             let mut range = start..end;
@@ -82,7 +82,7 @@ pub(super) fn locate(
             if found.is_none() {
                 found = Some(range);
             } else {
-                diagnostics.push(Diagnostic::new(DiagnosticKind::DuplicateExif).at_file(segment));
+                diagnostics.push(Diagnostic::new(DiagnosticKind::DuplicateExif).at(segment));
             }
         }
         at = end;

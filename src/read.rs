@@ -38,6 +38,7 @@ impl Exif {
         finish(
             Cow::Borrowed(payload),
             &located,
+            range.start,
             data.len(),
             options,
             diagnostics,
@@ -73,6 +74,9 @@ impl Exif {
         let mut stream = container::Stream(reader);
         let located = container::locate_in(&mut stream, &mut diagnostics)?;
         let range = located.exif.clone().ok_or(Error::NoExif)?;
+        // Budget from the whole file, as `read_with` does, so both paths agree.
+        let total = container::Input::len(&mut stream)?.unwrap_or(range.end);
+        let file_len = usize::try_from(total).unwrap_or(usize::MAX);
         let mut reader = stream.0;
         reader.seek(SeekFrom::Start(range.start))?;
         // `take` + `read_to_end` grows the buffer only as bytes arrive, so a
@@ -81,10 +85,10 @@ impl Exif {
         reader
             .take(range.end.saturating_sub(range.start))
             .read_to_end(&mut payload)?;
-        let file_len = usize::try_from(range.end).unwrap_or(usize::MAX);
         finish(
             Cow::Owned(payload),
             &located,
+            range.start,
             file_len,
             options,
             diagnostics,
@@ -95,13 +99,20 @@ impl Exif {
 fn finish(
     payload: Cow<'_, [u8]>,
     located: &Located,
+    payload_start: u64,
     file_len: usize,
     options: &ReadOptions,
     mut diagnostics: Diagnostics,
 ) -> Result<(Exif, Diagnostics)> {
     let budget = options.limits.alloc_budget(file_len);
-    let tiff = container::tiff_payload(payload, located.encoding, budget, &mut diagnostics)?;
-    let (exif, more) = Exif::from_tiff_lenient(&tiff, options)?;
+    let (tiff, tiff_start) =
+        container::tiff_payload(payload, located.encoding, budget, &mut diagnostics)?;
+    let (exif, mut more) = Exif::from_tiff_lenient(&tiff, options)?;
+    // IFD offsets are relative to the TIFF block; report them relative to the
+    // file, like container offsets (decoded PNG text has no file position).
+    if let Some(start) = tiff_start {
+        more.rebase(payload_start.saturating_add(start));
+    }
     diagnostics.extend(more);
     check_strict(&diagnostics, options)?;
     Ok((exif, diagnostics))
@@ -163,6 +174,27 @@ mod tests {
             Err(Error::UnknownFormat)
         ));
         assert!(matches!(Exif::read(b""), Err(Error::UnknownFormat)));
+    }
+
+    #[test]
+    fn ifd_offsets_are_file_relative() {
+        // Replace Orientation with a Make (ASCII) whose 100 bytes would sit
+        // at TIFF offset 10_000, far out of bounds.
+        let mut tiff = TIFF.to_vec();
+        tiff[10..22].copy_from_slice(&[0x0F, 0x01, 2, 0, 100, 0, 0, 0, 0x10, 0x27, 0, 0]);
+        let mut app1 = b"Exif\0\0".to_vec();
+        app1.extend_from_slice(&tiff);
+        let jpeg = jpeg_with(&app1);
+        let tiff_start: u64 = 2 + 4 + 6; // SOI, APP1 marker and length, "Exif\0\0"
+        let (_, from_tiff) = Exif::from_tiff(&tiff).unwrap();
+        let (_, from_file) = Exif::read(&jpeg).unwrap();
+        let first = |d: &Diagnostics| d.iter().next().and_then(|d| d.offset);
+        assert_eq!(first(&from_tiff), Some(10_000));
+        assert_eq!(first(&from_file), Some(10_000 + tiff_start));
+        let strict = Exif::read_with(&jpeg, &ReadOptions::DEFAULT.strict(true));
+        assert!(
+            matches!(strict, Err(Error::Malformed { offset, .. }) if offset == 10_000 + tiff_start)
+        );
     }
 
     #[test]

@@ -165,9 +165,12 @@ pub struct Diagnostic {
     pub ifd: Option<IfdKind>,
     /// The tag it concerns, if any.
     pub tag: Option<Tag>,
-    /// The offset involved, if any: relative to the TIFF block for IFD
-    /// problems, and to the start of the file for container problems.
-    pub offset: Option<u32>,
+    /// The byte offset involved, if any. From [`Exif::read`](crate::Exif::read)
+    /// and friends it is relative to the start of the file, except inside a
+    /// decoded legacy PNG text chunk, where it is relative to the decoded TIFF
+    /// block. From [`Exif::from_tiff`](crate::Exif::from_tiff) it is relative
+    /// to the TIFF block.
+    pub offset: Option<u64>,
 }
 
 impl Diagnostic {
@@ -198,19 +201,9 @@ impl Diagnostic {
 
     /// Sets the offset.
     #[must_use]
-    pub const fn at(mut self, offset: u32) -> Self {
-        self.offset = Some(offset);
+    pub fn at(mut self, offset: impl Into<u64>) -> Self {
+        self.offset = Some(offset.into());
         self
-    }
-
-    /// Sets a file offset, saturating above 4 GiB.
-    #[must_use]
-    #[cfg_attr(
-        not(any(feature = "jpeg", feature = "png", feature = "webp")),
-        allow(dead_code)
-    )]
-    pub(crate) fn at_file(self, offset: u64) -> Self {
-        self.at(u32::try_from(offset).unwrap_or(u32::MAX))
     }
 
     /// Returns how serious this diagnostic is.
@@ -255,6 +248,14 @@ impl Diagnostics {
 
     pub(crate) fn extend(&mut self, other: Self) {
         self.0.extend(other.0);
+    }
+
+    /// Moves every offset by `base`, turning TIFF-block offsets into file
+    /// offsets.
+    pub(crate) fn rebase(&mut self, base: u64) {
+        for offset in self.0.iter_mut().filter_map(|d| d.offset.as_mut()) {
+            *offset = offset.saturating_add(base);
+        }
     }
 
     /// The diagnostics pushed after the first `start`.
