@@ -13,9 +13,11 @@ mod error;
 mod gps;
 mod limits;
 mod model;
+mod read;
 mod text;
 mod value;
 
+pub mod container;
 pub mod ifd;
 pub mod tag;
 pub mod tiff;
@@ -23,6 +25,7 @@ pub mod tiff;
 #[doc(hidden)]
 pub mod prelude;
 
+pub use crate::container::Format;
 pub use crate::datetime::{DateTime, Offset, SubSec};
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics, Severity};
 pub use crate::error::{Error, Result};

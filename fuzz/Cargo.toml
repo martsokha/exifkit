@@ -12,8 +12,15 @@ cargo-fuzz = true
 members = ["."]
 
 [dependencies]
-exifkit = { path = ".." }
+exifkit = { path = "..", features = ["png-legacy"] }
 libfuzzer-sys = { version = "0.4" }
+
+[[bin]]
+name = "read_any"
+path = "fuzz_targets/read_any.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "tiff_parse"

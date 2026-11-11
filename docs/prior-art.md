@@ -170,3 +170,42 @@ something we can build on.
   segment and copy every other byte through untouched.
 - Cover the same containers as `little_exif`, and also write MakerNotes,
   SubIFDs and UTF-8 correctly.
+
+## Overlap review (2026-11-11)
+
+Before M2's writers, we checked which crates already do what we are
+building, by reading their source, not just their descriptions.
+
+| Crate (version, first release) | Overlaps with | Verdict |
+|---|---|---|
+| `kamadak-exif` 0.6.2 (2016) | `tiff/`, `model.rs` (read) | Keep ours. Read-only apart from a writer that builds a TIFF block from scratch, so it cannot edit a file. Unknown types such as UTF-8 (129) are kept opaque, not decoded. 0.6.2 (2026-11-05) is a security fix: already-visited IFDs are now skipped to stop O(n³) memory growth, which is the hostile-input class our walker is built around. No diagnostics, no `no_std`, `std::io::BufRead` only. |
+| `nom-exif` 3.8 (2024) | reading | Read-only. Depends on nom, regex and chrono. Not a fit. |
+| `img-parts` 0.4.2 (2020) | `container/` (read), M2 container writers | The real overlap: JPEG/PNG/RIFF read and write, `no_std`, MPF offsets updated when the Exif segment changes size. See the issues below. Not adopted as a dependency, but used as a reference and a test oracle. |
+| `gamut-isobmff` 3.0 (2026-06) | M3 HEIF/AVIF | Strong on safety: forbids `unsafe`, caps payloads at the input size, has typed write errors. But `write` re-serialises the whole file into an "equivalent, not byte-identical" layout (it inlines `idat`), and it rejects valid files using `construction_method` 2 or protected items. That conflicts with our rule of copying untouched bytes. Decide in M3. Useful as a cross-check either way. |
+| `mp4-atom` 0.17 | M3 | General MP4/ISOBMFF, 31k lines. More than we need. |
+| `c2pa` | embedding metadata in many formats | A full provenance SDK with a large dependency tree. Not a fit. |
+| `crc32fast`, `infer` | PNG CRC, format detection | Ours are about 20 lines each. Not worth a dependency. |
+
+### `img-parts` 0.4.2 issues
+
+These are why we don't build on it. Each is worth reporting upstream.
+
+- **JPEG: oversized Exif is dropped silently.** `set_exif` removes the
+  old Exif segment, then inserts nothing if the new block is over 64 KB,
+  without returning an error. The file loses its metadata. We return
+  `Error::TooLarge` (see `writing.md`).
+- **WebP: the `EXIF` chunk goes after `XMP `.** `set_exif` appends at
+  the end, but the container spec orders EXIF before XMP.
+- **WebP: lossless files can be left invalid.** Converting a simple
+  lossless (VP8L) file to VP8X is a `TODO`. When the canvas size is
+  unknown, it returns without adding `VP8X`, which leaves an `EXIF`
+  chunk in a simple-format file.
+- **Whole-file, always-on dependencies.** It parses the whole file
+  (including JPEG entropy data) into `bytes::Bytes`, with no streaming.
+  `bytes`, `crc32fast` and `miniz_oxide` are always compiled in.
+- **No legacy PNG raw profiles,** and no diagnostics for duplicates,
+  bad CRCs or truncation.
+
+What we take from it: its MPF entry update (`jpeg/mpf.rs`) is a useful
+reference for our MPF check, and its `exif()` accessor can serve as a
+second opinion on where the Exif block is in the corpus files.

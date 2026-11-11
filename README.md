@@ -6,8 +6,8 @@
 
 Read, edit and write Exif metadata in pure Rust.
 
-> **Status:** early development. Reading raw Exif/TIFF blocks works;
-> image containers (JPEG, PNG, …) and writing are in progress. See
+> **Status:** early development. Reading works for JPEG, TIFF (including
+> DNG and other TIFF-based raw files), PNG and WebP; writing is in progress. See
 > [`docs/`](https://github.com/martsokha/exifkit/tree/main/docs) for the
 > design and [`docs/roadmap.md`](https://github.com/martsokha/exifkit/blob/main/docs/roadmap.md)
 > for progress.
@@ -32,9 +32,10 @@ use exifkit::tag::Orientation;
 use exifkit::{Exif, Tag};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // A raw TIFF block: a TIFF file, or the payload of a JPEG's Exif APP1.
-    let tiff = std::fs::read("image.tif")?;
-    let (exif, diagnostics) = Exif::from_tiff(&tiff)?;
+    // JPEG, TIFF, PNG or WebP; the format is detected. `Exif::read_from`
+    // takes any `Read + Seek` and reads only the metadata.
+    let data = std::fs::read("photo.jpg")?;
+    let (exif, diagnostics) = Exif::read(&data)?;
 
     let orientation: Option<Orientation> = exif.get(Tag::ORIENTATION)?;
     let taken = exif.date_time_original()?; // DateTimeOriginal + sub-seconds + offset

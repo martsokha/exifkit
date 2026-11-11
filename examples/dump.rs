@@ -4,8 +4,8 @@
 //! cargo run --example dump -- photo.jpg
 //! ```
 //!
-//! Reads TIFF files directly. For JPEG it does a minimal APP1 scan; the real
-//! container support (docs/containers.md) arrives in milestone M2.
+//! Supports JPEG, TIFF (including DNG and other TIFF-based raw files), PNG and
+//! WebP. Build with `--all-features` to also read legacy PNG text chunks.
 
 use std::process::ExitCode;
 
@@ -23,11 +23,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let Some(tiff) = tiff_block(&data) else {
-        eprintln!("{path}: no Exif found");
-        return ExitCode::FAILURE;
-    };
-    let (exif, diagnostics) = match Exif::from_tiff(tiff) {
+    let (exif, diagnostics) = match Exif::read(&data) {
         Ok(read) => read,
         Err(err) => {
             eprintln!("{path}: {err}");
@@ -53,27 +49,4 @@ fn main() -> ExitCode {
         println!("warning: {diagnostic}");
     }
     ExitCode::SUCCESS
-}
-
-/// Returns the TIFF block: the whole file for TIFF, or the payload of the
-/// first `Exif\0\0` APP1 segment for JPEG.
-fn tiff_block(data: &[u8]) -> Option<&[u8]> {
-    if data.starts_with(b"II*\0") || data.starts_with(b"MM\0*") {
-        return Some(data);
-    }
-    let mut rest = data.strip_prefix(&[0xFF, 0xD8])?;
-    while let [0xFF, marker, hi, lo, tail @ ..] = rest {
-        if *marker == 0xDA {
-            break; // start of scan: no metadata after this
-        }
-        let len = usize::from(u16::from_be_bytes([*hi, *lo])).checked_sub(2)?;
-        let payload = tail.get(..len)?;
-        if *marker == 0xE1
-            && let Some(tiff) = payload.strip_prefix(b"Exif\0\0")
-        {
-            return Some(tiff);
-        }
-        rest = tail.get(len..)?;
-    }
-    None
 }

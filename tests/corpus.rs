@@ -1,6 +1,7 @@
 //! Compares exifkit against ExifTool on real-world sample images.
 //!
-//! The images are downloaded by `cargo xtask fixtures` (they are not committed);
+//! Files are read through `Exif::read`, so the container code (JPEG, TIFF,
+//! PNG, WebP) is exercised too. The images are downloaded by `cargo xtask fixtures` (they are not committed);
 //! `tests/golden/` holds what ExifTool 13.x reads from each, recorded by
 //! `cargo xtask golden`. Without the images this test only checks that the
 //! goldens parse, so a plain `cargo test` works offline.
@@ -41,36 +42,6 @@ fn goldens(dir: &Path, out: &mut Vec<PathBuf>) {
         } else if path.extension().is_some_and(|e| e == "json") {
             out.push(path);
         }
-    }
-}
-
-/// The TIFF block: the whole file for TIFF-based formats, or the payload of
-/// the first `Exif\0\0` APP1 segment for JPEG. (Real container support is
-/// milestone M2.)
-fn tiff_block(data: &[u8]) -> Option<&[u8]> {
-    if data.starts_with(b"II*\0") || data.starts_with(b"MM\0*") {
-        return Some(data);
-    }
-    let mut rest = data.strip_prefix(&[0xFF, 0xD8])?;
-    loop {
-        // Skip fill bytes between segments.
-        while let [0xFF, 0xFF, tail @ ..] = rest {
-            rest = rest.get(1..).unwrap_or(tail);
-        }
-        let [0xFF, marker, hi, lo, tail @ ..] = rest else {
-            return None;
-        };
-        if *marker == 0xDA {
-            return None;
-        }
-        let len = usize::from(u16::from_be_bytes([*hi, *lo])).checked_sub(2)?;
-        let payload = tail.get(..len)?;
-        if *marker == 0xE1
-            && let Some(tiff) = payload.strip_prefix(b"Exif\0\0")
-        {
-            return Some(tiff);
-        }
-        rest = tail.get(len..)?;
     }
 }
 
@@ -332,21 +303,28 @@ fn find<'a>(exif: &'a Exif, kinds: &[IfdKind], tag: u16, copy: usize) -> Option<
 
 /// Checks one fixture; returns a description of every mismatch.
 fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
-    let base = |tiff: &[u8]| (tiff.as_ptr() as usize - data.as_ptr() as usize) as f64;
     let entries = golden["entries"].as_array().cloned().unwrap_or_default();
     let mut problems = Vec::new();
-    let Some(tiff) = tiff_block(data) else {
-        if !entries.is_empty() {
-            problems.push(format!(
-                "no Exif found, ExifTool reads {} tags",
-                entries.len()
-            ));
-        }
-        return problems;
+    // ExifTool reports data offsets relative to the file; find where the
+    // TIFF block starts so they can be compared.
+    let base = match exifkit::container::locate(data) {
+        Ok((located, _)) => located.exif.map_or(0.0, |r| r.start as f64),
+        Err(_) => 0.0,
     };
-    let base = base(tiff);
-    let (exif, _diagnostics) = match Exif::from_tiff(tiff) {
+    // The streaming reader must agree with the in-memory one exactly.
+    let streamed = Exif::read_from(std::io::Cursor::new(data));
+    match (&streamed, Exif::read(data)) {
+        (Ok(a), Ok(b)) if *a == b => {}
+        (Err(a), Err(b)) if a.to_string() == b.to_string() => {}
+        (a, b) => problems.push(format!("read_from and read disagree: {a:?} vs {b:?}")),
+    }
+    let (exif, _diagnostics) = match Exif::read(data) {
         Ok(read) => read,
+        Err(exifkit::Error::Unsupported { .. }) if !cfg!(feature = "png-legacy") => {
+            // Legacy PNG text chunks need the `png-legacy` feature.
+            stats.skipped += entries.len();
+            return problems;
+        }
         Err(err) => {
             if !entries.is_empty() {
                 problems.push(format!(
@@ -384,6 +362,21 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
             {
                 continue;
             }
+        }
+        // A later copy of a tag with no duplicate in exifkit's IFD comes from a
+        // second Exif block ExifTool also reads (for example the copy inside
+        // Photoshop's image resources), not from a duplicate entry.
+        let second_block = copy > 0
+            && kinds.iter().all(|&kind| {
+                exif.ifd(kind).is_none_or(|ifd| {
+                    !ifd.duplicates()
+                        .iter()
+                        .any(|e| e.tag() == Tag::new(namespace(kind), id))
+                })
+            });
+        if second_block {
+            stats.skipped += 1;
+            continue;
         }
         match find(&exif, &kinds, id, copy) {
             None => problems.push(format!("missing {group}:{name} (0x{id:04X}) = {theirs}")),

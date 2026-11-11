@@ -1,0 +1,7 @@
+{
+  "entries": [],
+  "exiftool": "13.55",
+  "warnings": [
+    "[minor] Text/EXIF chunk(s) found after PNG IDAT (may be ignored by some readers) [x3]"
+  ]
+}

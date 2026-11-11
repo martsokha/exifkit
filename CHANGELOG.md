@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Container reading: `Exif::read` and `Exif::read_with` for files in memory,
+  `Exif::read_from` and `Exif::read_from_with` for `Read + Seek` streams
+  (reading only the metadata). Supports JPEG, TIFF (including TIFF-based raw
+  files such as DNG), PNG (`eXIf`, and with the `png-legacy` feature the
+  ImageMagick "Raw profile type exif" text chunks) and WebP. HEIF and JPEG XL
+  are detected and reported as unsupported for now.
+- `container::detect`, `container::locate`, `Format`, `Located` and `Encoding`.
+- Container diagnostics: `DuplicateExif`, `NonStandardExifHeader`,
+  `ExifAfterImageData`, `CrcMismatch` and `TruncatedContainer`.
+- `Value`, `Entry`, `Ifd` and `Exif` implement `Eq`. Floats compare bit for
+  bit, so a value containing NaN equals itself.
+
 - Crate scaffold: `Error`, `Result` and `Limits`, with CI for format, clippy,
   docs, tests, a `no_std` build, generated-code freshness, cargo-deny and
   nightly fuzzing.

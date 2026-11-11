@@ -848,3 +848,81 @@ source = "little_exif"
 path = "tests/sample2.jpg"
 sha256 = "ef8c9bcc523c5bca6c7e30f4434a4581e6c816013228961fba1b21b0ff57c9be"
 size = 140300
+
+[[fixture]]
+source = "little_exif"
+path = "examples/image.png"
+sha256 = "a0ce97af9f85781edd242c9f50a05122040dd4ee5a48fde7c3f949664fee4124"
+size = 64045
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000052/test1.png"
+sha256 = "ae0b5f37d15ab569a660c08b5e2dfd730a0f1e04a3d4e1901b6a3cd70ae14061"
+size = 5119
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000052/test2.png"
+sha256 = "c82dea3affa9057938be54a57407272463be9d75650f06b440f6b0c232c8ac04"
+size = 7676
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000052/test3.png"
+sha256 = "01d1e2918f40999e045fd35bf64a0e6efb457cfdc76a8cedf058e3c6b26ad1b4"
+size = 4291
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000054/437532191-50f650a1-788c-44a4-a535-526d10d297ec.png"
+sha256 = "bbafc96a43bc70996cac1c5534b8a9374692997d496a2e011e7381c8defa711c"
+size = 306838
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000055/437726296-e38cf0e2-93c9-4e43-9786-6003e167d39c.png"
+sha256 = "4757abc08ceafb548afb485af4eecf3eb8f5b35567aca5f7506da299479c3b28"
+size = 617
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000059/447912738-6fd9f973-a793-4f09-97e0-2a8ad4f46e25.png"
+sha256 = "a559ff923d815d7bf005868cd2d882c5f3a6dd3f2196b45db29b00e1f98341ad"
+size = 7372
+
+[[fixture]]
+source = "little_exif"
+path = "tests/png_parse_test_image.png"
+sha256 = "6f1aee8ca386762300270a51c09f53a0f58795585a2cf89d26778e0e52625a3c"
+size = 107
+
+[[fixture]]
+source = "little_exif"
+path = "tests/read_sample.webp"
+sha256 = "1057e139a551f7fa35a1e45277407f7ae7f26f8b7cc21d409b18f6e3be53f557"
+size = 11238
+
+[[fixture]]
+source = "little_exif"
+path = "tests/sample2.png"
+sha256 = "a0ce97af9f85781edd242c9f50a05122040dd4ee5a48fde7c3f949664fee4124"
+size = 64045
+
+[[fixture]]
+source = "little_exif"
+path = "tests/sample2_extended.webp"
+sha256 = "da47f9fabe2f2650e16b4e3caf0af4883b50ee6a446af8e2411cae8ef5dcb1d6"
+size = 11124
+
+[[fixture]]
+source = "little_exif"
+path = "tests/sample2_simple_lossless.webp"
+sha256 = "a03045db5b7a042f51ab483227b33c2e0d83385b272fb5bdf2515229127b063d"
+size = 24306
+
+[[fixture]]
+source = "little_exif"
+path = "tests/sample2_simple_lossy.webp"
+sha256 = "47bd378a8eaaad0a6e59ca652a740395ce00d007a07114cfb641b45eeaec6eae"
+size = 12428

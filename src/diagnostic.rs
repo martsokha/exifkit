@@ -71,6 +71,20 @@ pub enum DiagnosticKind {
     InvalidThumbnail,
     /// A resource limit was hit. Data beyond it is missing.
     LimitExceeded(Limit),
+    /// The file holds more than one Exif block. The first (for PNG, the
+    /// `eXIf` chunk) is used; the others are ignored.
+    DuplicateExif,
+    /// The Exif block has a non-standard header (for example a PNG `eXIf`
+    /// chunk starting with JPEG's `Exif\0\0`). It was read anyway.
+    NonStandardExifHeader,
+    /// A PNG `eXIf` chunk comes after the image data. Valid since PNG 3rd
+    /// edition, but some readers ignore it.
+    ExifAfterImageData,
+    /// A PNG chunk's CRC does not match its contents.
+    CrcMismatch,
+    /// The container ends before a structure it declares. The Exif data may
+    /// be incomplete.
+    TruncatedContainer,
 }
 
 impl DiagnosticKind {
@@ -84,7 +98,11 @@ impl DiagnosticKind {
             | Self::MisplacedTag { .. }
             | Self::UnsortedEntries
             | Self::DuplicateTag
-            | Self::InvalidUtf8 => Severity::Warning,
+            | Self::InvalidUtf8
+            | Self::DuplicateExif
+            | Self::NonStandardExifHeader
+            | Self::ExifAfterImageData
+            | Self::CrcMismatch => Severity::Warning,
             Self::OutOfBounds
             | Self::ValueTooLarge
             | Self::Truncated
@@ -94,7 +112,8 @@ impl DiagnosticKind {
             | Self::DuplicateIfd
             | Self::InvalidPointer
             | Self::InvalidThumbnail
-            | Self::LimitExceeded(_) => Severity::Error,
+            | Self::LimitExceeded(_)
+            | Self::TruncatedContainer => Severity::Error,
         }
     }
 
@@ -127,6 +146,11 @@ impl DiagnosticKind {
             Self::InvalidPointer => "invalid IFD pointer",
             Self::InvalidThumbnail => "thumbnail out of bounds",
             Self::LimitExceeded(_) => "resource limit exceeded",
+            Self::DuplicateExif => "more than one Exif block",
+            Self::NonStandardExifHeader => "non-standard Exif header",
+            Self::ExifAfterImageData => "Exif after image data",
+            Self::CrcMismatch => "chunk CRC mismatch",
+            Self::TruncatedContainer => "truncated file",
         }
     }
 }
@@ -141,7 +165,8 @@ pub struct Diagnostic {
     pub ifd: Option<IfdKind>,
     /// The tag it concerns, if any.
     pub tag: Option<Tag>,
-    /// The TIFF-relative offset involved, if any.
+    /// The offset involved, if any: relative to the TIFF block for IFD
+    /// problems, and to the start of the file for container problems.
     pub offset: Option<u32>,
 }
 
@@ -176,6 +201,16 @@ impl Diagnostic {
     pub const fn at(mut self, offset: u32) -> Self {
         self.offset = Some(offset);
         self
+    }
+
+    /// Sets a file offset, saturating above 4 GiB.
+    #[must_use]
+    #[cfg_attr(
+        not(any(feature = "jpeg", feature = "png", feature = "webp")),
+        allow(dead_code)
+    )]
+    pub(crate) fn at_file(self, offset: u64) -> Self {
+        self.at(u32::try_from(offset).unwrap_or(u32::MAX))
     }
 
     /// Returns how serious this diagnostic is.
@@ -216,6 +251,10 @@ pub struct Diagnostics(Vec<Diagnostic>);
 impl Diagnostics {
     pub(crate) fn push(&mut self, diagnostic: Diagnostic) {
         self.0.push(diagnostic);
+    }
+
+    pub(crate) fn extend(&mut self, other: Self) {
+        self.0.extend(other.0);
     }
 
     /// The diagnostics pushed after the first `start`.
