@@ -31,7 +31,8 @@ pub enum Error {
     InvalidHeader,
     /// The input is structurally broken in a way that cannot be recovered.
     Malformed {
-        /// Byte offset of the problem, relative to the start of the input.
+        /// Byte offset of the problem, with the same base as
+        /// [`Diagnostic::offset`](crate::Diagnostic::offset).
         offset: u64,
         /// A short description of what is wrong.
         reason: &'static str,

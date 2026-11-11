@@ -69,7 +69,11 @@ impl fmt::Display for SRational {
 /// Text values (`Ascii`, `Utf8`) hold the stored bytes including any NUL
 /// terminator, so they round-trip byte for byte. Use [`Value::text`] for the
 /// string itself.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Equality means "the same stored value": floats compare bit for bit, so a
+/// NaN equals itself and `0.0` differs from `-0.0`. That keeps `==` an
+/// equivalence ([`Eq`]), which round-trip checks rely on.
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum Value {
     /// BYTE values.
@@ -111,6 +115,47 @@ pub enum Value {
         field: [u8; 4],
     },
 }
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        fn bits32(v: &[f32]) -> impl Iterator<Item = u32> + '_ {
+            v.iter().map(|f| f.to_bits())
+        }
+        fn bits64(v: &[f64]) -> impl Iterator<Item = u64> + '_ {
+            v.iter().map(|f| f.to_bits())
+        }
+        match (self, other) {
+            (Self::Byte(a), Self::Byte(b))
+            | (Self::Ascii(a), Self::Ascii(b))
+            | (Self::Undefined(a), Self::Undefined(b))
+            | (Self::Utf8(a), Self::Utf8(b)) => a == b,
+            (Self::Short(a), Self::Short(b)) => a == b,
+            (Self::Long(a), Self::Long(b)) | (Self::Ifd(a), Self::Ifd(b)) => a == b,
+            (Self::Rational(a), Self::Rational(b)) => a == b,
+            (Self::SByte(a), Self::SByte(b)) => a == b,
+            (Self::SShort(a), Self::SShort(b)) => a == b,
+            (Self::SLong(a), Self::SLong(b)) => a == b,
+            (Self::SRational(a), Self::SRational(b)) => a == b,
+            (Self::Float(a), Self::Float(b)) => bits32(a).eq(bits32(b)),
+            (Self::Double(a), Self::Double(b)) => bits64(a).eq(bits64(b)),
+            (
+                Self::Unknown {
+                    type_id: t1,
+                    count: c1,
+                    field: f1,
+                },
+                Self::Unknown {
+                    type_id: t2,
+                    count: c2,
+                    field: f2,
+                },
+            ) => t1 == t2 && c1 == c2 && f1 == f2,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
 
 impl Value {
     /// Creates an ASCII value from text, adding the NUL terminator.
@@ -524,6 +569,16 @@ mod tests {
         assert_eq!(v.to_string(), "Canon");
         assert_eq!(Value::ascii("x"), Value::Ascii(b"x\0".to_vec()));
         assert_eq!(Value::Ascii(b"\xFF\0".to_vec()).text(), None);
+    }
+
+    #[test]
+    fn equality_is_bitwise_for_floats() {
+        // Found by fuzzing: a NaN made a model unequal to itself.
+        let nan = Value::Float(vec![f32::NAN]);
+        assert_eq!(nan, nan.clone());
+        assert_eq!(Value::Double(vec![f64::NAN]), Value::Double(vec![f64::NAN]));
+        assert_ne!(Value::Float(vec![0.0]), Value::Float(vec![-0.0]));
+        assert_ne!(Value::Long(vec![1]), Value::Ifd(vec![1]));
     }
 
     #[test]

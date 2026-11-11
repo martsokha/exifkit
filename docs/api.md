@@ -118,6 +118,9 @@ pub struct SRational { pub num: i32, pub den: i32 }
 // to_f64() -> Option<f64> (None if den == 0), approx(f64, max_den) constructor, Display "1/250"
 ```
 
+Implemented in M2 (PR 1): `Exif::read[_with]`, `Exif::read_from[_with]`,
+`container::{detect, locate, Format, Located, Encoding}`.
+
 Implemented in M1: `Exif`, `Ifd`, `Entry`, `Value`, `Rational`,
 `SRational`, `ReadOptions`, `Exif::from_tiff[_with]`, `get`, `entry`,
 `entries`, `thumbnail` (as `Option<&[u8]>`), `maker_note_offset`,
@@ -203,7 +206,7 @@ table, so the set is documented and can be reviewed.
 Reading is lenient by default and returns `(Exif, Diagnostics)`.
 
 ```rust
-pub struct Diagnostic { pub kind: DiagnosticKind, pub ifd: Option<IfdKind>, pub tag: Option<Tag>, pub offset: Option<u32> }
+pub struct Diagnostic { pub kind: DiagnosticKind, pub ifd: Option<IfdKind>, pub tag: Option<Tag>, pub offset: Option<u64> }  // file-relative from Exif::read*
 #[non_exhaustive]
 pub enum DiagnosticKind {
     UnknownType(u16), TypeMismatch { expected: &'static [Type], found: Type },

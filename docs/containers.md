@@ -10,6 +10,28 @@ All container code obeys the [safety model](architecture.md#safety-model).
 Every length read from the file is checked against the remaining input,
 and every loop has an upper bound.
 
+## Implementation status
+
+Reading is implemented for JPEG, TIFF, PNG (including `png-legacy`) and
+WebP in `src/container/`. HEIF and JPEG XL are detected but return
+`Error::Unsupported` until M3. Each scanner works over an internal
+`Input` trait, implemented for byte slices and for `Read + Seek` streams,
+so `Exif::read` and `Exif::read_from` share one code path and fuzzing
+checks that they agree. `container::locate` exposes where the payload is
+(`Located { format, exif: Option<Range<u64>>, encoding }`) for callers
+who want the raw bytes.
+
+What we do differently from this design:
+
+- **JPEG:** an APP1 that declares more bytes than the file has is read up
+  to the end of the file, with `TruncatedContainer` (Severity::Error).
+- **PNG:** CRCs are checked only for the chunk that carries Exif, which
+  is a warning on mismatch. When an `eXIf` chunk and a legacy raw profile
+  are both present, the `eXIf` chunk wins (`DuplicateExif`).
+- **TIFF streams:** `read_from` reads a TIFF file whole, because the
+  parse layer works on a slice. Seeking only to the IFDs is a later
+  optimisation.
+
 ## Summary
 
 | Format     | Where Exif lives                                        | Prefix before TIFF header        | Max payload        | v1 read | v1 write |

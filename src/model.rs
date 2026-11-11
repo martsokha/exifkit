@@ -15,7 +15,7 @@ use crate::tiff::{ByteOrder, DataError, Header, RawEntry, RawIfd, Reader};
 use crate::value::{FromValue, Value, ValueError};
 
 /// A tag and its value.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Entry {
     tag: Tag,
     value: Value,
@@ -65,7 +65,7 @@ impl fmt::Display for Entry {
 ///
 /// Pointer tags (`ExifIFDPointer`, `SubIFDs`, …) are not entries: the model
 /// holds the IFDs they point to, and the writer recomputes them.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ifd {
     kind: IfdKind,
     offset: Option<u32>,
@@ -214,7 +214,7 @@ impl Default for ReadOptions {
 }
 
 /// Exif metadata: a tree of IFDs, a thumbnail and the MakerNote location.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Exif {
     byte_order: ByteOrder,
     ifds: Vec<Ifd>,
@@ -260,21 +260,19 @@ impl Exif {
     /// Fails if the TIFF header is invalid, or in strict mode on the first
     /// diagnostic of [`Severity::Error`](crate::Severity::Error).
     pub fn from_tiff_with(data: &[u8], options: &ReadOptions) -> Result<(Self, Diagnostics)> {
+        let (exif, diagnostics) = Self::from_tiff_lenient(data, options)?;
+        check_strict(&diagnostics, options)?;
+        Ok((exif, diagnostics))
+    }
+
+    /// Reads a TIFF block, ignoring [`ReadOptions::strict`].
+    pub(crate) fn from_tiff_lenient(
+        data: &[u8],
+        options: &ReadOptions,
+    ) -> Result<(Self, Diagnostics)> {
         let header = Header::parse(data)?;
         let reader = Reader::new(data, header.byte_order);
-        let (exif, diagnostics) = Walker::new(reader, options).run(header.ifd0_offset);
-        if options.strict
-            && let Some(first) = diagnostics.first_error()
-        {
-            return Err(match first.kind {
-                DiagnosticKind::LimitExceeded(limit) => Error::LimitExceeded(limit),
-                kind => Error::Malformed {
-                    offset: u64::from(first.offset.unwrap_or(0)),
-                    reason: kind.reason(),
-                },
-            });
-        }
-        Ok((exif, diagnostics))
+        Ok(Walker::new(reader, options).run(header.ifd0_offset))
     }
 
     /// Returns the byte order.
@@ -342,6 +340,23 @@ impl Exif {
     #[must_use]
     pub const fn maker_note_offset(&self) -> Option<u32> {
         self.maker_note_offset
+    }
+}
+
+/// In strict mode, turns the first error diagnostic into an [`Error`].
+pub(crate) fn check_strict(diagnostics: &Diagnostics, options: &ReadOptions) -> Result<()> {
+    if !options.strict {
+        return Ok(());
+    }
+    match diagnostics.first_error() {
+        None => Ok(()),
+        Some(first) => Err(match first.kind {
+            DiagnosticKind::LimitExceeded(limit) => Error::LimitExceeded(limit),
+            kind => Error::Malformed {
+                offset: first.offset.unwrap_or(0),
+                reason: kind.reason(),
+            },
+        }),
     }
 }
 
