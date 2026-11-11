@@ -597,10 +597,10 @@ impl<'a> Plan<'a> {
     pub(super) fn serialize(&self) -> Result<Vec<u8>> {
         let mut out = vec![0u8; self.len()];
         let order = self.order;
-        let header = Header {
-            byte_order: order,
-            ifd0_offset: self.table(IfdKind::Primary).unwrap_or(Header::LEN as u32),
-        };
+        let header = Header::new(
+            order,
+            self.table(IfdKind::Primary).unwrap_or(Header::LEN as u32),
+        );
         put(&mut out, 0, &header.to_bytes())?;
         for &(at, bytes) in &self.copies {
             put(&mut out, at, bytes)?;

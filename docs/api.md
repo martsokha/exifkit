@@ -118,15 +118,18 @@ pub struct SRational { pub num: i32, pub den: i32 }
 // to_f64() -> Option<f64> (None if den == 0), approx(f64, max_den) constructor, Display "1/250"
 ```
 
-Implemented in M2 (PR 3): `Exif::write_into[_with]` and `remove_exif`. A
-`write_stream` over `Read + Seek`/`Write` is not implemented yet; callers
-read the file into memory.
+Implemented in M2 (PR 4): `Exif::set` with `IntoValue` and validation,
+`Exif::set_date_time_original` / `_digitized` / `set_date_time`,
+`EncodedText::new`, `Exif::write_stream`, `container::xmp` and
+`container::icc_profile`, and the ORF/RW2 magic numbers
+(`tiff::Header::magic`).
+
+Implemented in M2 (PR 3): `Exif::write_into[_with]` and `remove_exif`.
 
 Implemented in M2 (PR 2): `Exif::to_tiff[_with]`, `Exif::encoded_len`,
 `WriteOptions`, `MakerNotePolicy`, and editing through `Exif::insert`,
 `remove`, `ifd_mut`, `remove_ifd`, `set_thumbnail`, `set_byte_order` and
-`Ifd::insert`, `remove`, `retain`, `clear_duplicates`. A typed `set` with
-validation (`IntoValue`) is still to come.
+`Ifd::insert`, `remove`, `retain`, `clear_duplicates`.
 
 Implemented in M2 (PR 1): `Exif::read[_with]`, `Exif::read_from[_with]`,
 `container::{detect, locate, Format, Located, Encoding}`.
@@ -158,13 +161,13 @@ Design notes:
 ## Typed access
 
 ```rust
-pub trait FromValue: Sized { fn from_value(v: &Value, tag: Tag) -> Result<Self, ValueError>; }
+pub trait FromValue: Sized { fn from_value(v: &Value) -> Result<Self, ValueError>; }
 pub trait IntoValue { fn into_value(self, tag: Tag) -> Result<Value, ValueError>; }
 
 impl Exif {
     pub fn get<T: FromValue>(&self, tag: Tag) -> Result<Option<T>, ValueError>;
     pub fn set<T: IntoValue>(&mut self, tag: Tag, v: T) -> Result<Option<Value>, Error>;
-    pub fn set_raw(&mut self, ifd: IfdKind, tag: Tag, v: Value) -> Option<Value>; // no validation
+    pub fn insert(&mut self, entry: Entry) -> Result<Option<Entry>, Error>; // no value checks
     pub fn remove(&mut self, tag: Tag) -> Option<Value>;
     pub fn entry(&self, tag: Tag) -> Option<&Entry>;
     pub fn ifd(&self, kind: IfdKind) -> Option<&Ifd>;
@@ -179,13 +182,23 @@ impl Exif {
 - `FromValue` conversions are **lossless or an error**. A SHORT or a
   LONG becomes `u32`. A LONG becomes `u16` only if it fits. A RATIONAL
   becomes `f64` only through the explicit `Rational::to_f64`.
-- `set` checks the value against `TagInfo`: allowed types, count, string
-  kind and enum range. If the value fails the check, `set` returns
-  `Error::InvalidValue`. `set_raw` skips the checks, for tools that need
-  to write non-conforming data on purpose.
-- Built-in impls cover integers, `f32`/`f64` (FLOAT/DOUBLE tags only),
-  `Rational`, `&str`/`String`, `Vec<…>`/`[…; N]`, the generated enums,
-  `DateTime`, `EncodedText` and `Copyright`.
+- `IntoValue` takes the tag, so the table picks the field type: an
+  integer becomes the first allowed integer type it fits (the table lists
+  the preferred type first; a rational-only tag gets `n/1`), and text
+  becomes ASCII when it is ASCII and the tag allows it, else UTF-8. An
+  UNDEFINED-only tag such as `ExifVersion` takes a `&str` as raw bytes.
+- `set` checks the value against `TagInfo`: allowed types, count, and for
+  enumerations a value the table names. If the value fails the check,
+  `set` returns `Error::InvalidValue { tag, error }` and changes nothing.
+  `insert` skips the value checks, for tools that need to write
+  non-conforming data on purpose. Unknown tags are stored unchecked.
+- UTF-8 text and tags introduced in Exif 3.0 or later raise `ExifVersion`
+  to `"0300"` (adding it if missing). A higher version is never lowered.
+- Built-in impls cover `u8`/`u16`/`u32`, `i8`/`i16`/`i32`, `f32`/`f64`
+  (FLOAT/DOUBLE tags only; a float never becomes a rational implicitly),
+  `Rational`, `SRational`, `&str`/`String`, slices, `Vec<…>` and `[…; N]`
+  of those, the generated enums, `Value` (checked as is), `DateTime`,
+  `Offset`, `SubSec`, `EncodedText` and `Copyright`.
 
 Convenience accessors (generated or hand-written; kept small):
 
@@ -259,11 +272,15 @@ For callers who want control over the container:
 pub enum Format { Jpeg, Tiff, Png, WebP, Heif, Jxl }
 pub fn detect(prefix: &[u8]) -> Option<Format>;          // first 32 bytes are enough
 
-pub struct Located { pub format: Format, pub range: Range<u64>, pub tiff_offset: u64, /* … */ }
-pub fn locate<R: Read + Seek>(r: R) -> Result<Option<Located>, Error>;
+pub struct Located { pub format: Format, pub exif: Option<Range<u64>>, pub encoding: Encoding }
+pub fn locate(data: &[u8]) -> Result<(Located, Diagnostics), Error>;
+
+// Sibling metadata, as stored; never touched by an Exif write
+pub fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>, Error>;
+pub fn icc_profile(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>, Error>;
 
 // Writing
-pub struct WriteOptions { pub layout: Layout, pub png_placement: PngPlacement, /* … */ }
+pub struct WriteOptions<'a> { pub byte_order: Option<ByteOrder>, pub maker_note: MakerNotePolicy, pub source: Option<&'a [u8]> }
 impl Exif {
     pub fn write_into(&self, original: &[u8]) -> Result<Vec<u8>, Error>;
     pub fn write_into_with(&self, original: &[u8], opts: &WriteOptions) -> Result<Vec<u8>, Error>;
@@ -271,6 +288,11 @@ impl Exif {
 }
 pub fn remove_exif(original: &[u8]) -> Result<Vec<u8>, Error>;   // delete the segment entirely
 ```
+
+`write_stream` gives the same bytes as `write_into`. For JPEG, PNG and
+WebP it reads only headers, small metadata chunks and the Exif block, and
+copies the image data through in 64 KiB blocks. A TIFF file is its own
+Exif block, so it is read whole.
 
 There is no `write_to_file(path)` that overwrites in place. Writing to a
 temporary file and renaming it is the caller's decision, and the docs

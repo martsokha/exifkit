@@ -39,8 +39,10 @@ webp = []
 heif = []
 jxl = []
 
+# zlib inflate, for PNG's compressed chunks (`iCCP` profiles, compressed XMP).
+inflate = ["dep:miniz_oxide"]
 # Legacy PNG text chunks with Exif as a hex "Raw profile type exif" (needs inflate).
-png-legacy = ["png", "dep:miniz_oxide"]
+png-legacy = ["png", "inflate"]
 # Brotli-compressed (`brob`) JPEG XL Exif boxes.
 jxl-brob = ["jxl"]
 

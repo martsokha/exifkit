@@ -8,11 +8,26 @@
 mod input;
 #[cfg(feature = "jpeg")]
 mod jpeg;
+// Each format uses a different part of the piece list.
+#[cfg_attr(
+    not(all(
+        feature = "jpeg",
+        feature = "png-legacy",
+        feature = "webp",
+        feature = "std"
+    )),
+    allow(dead_code)
+)]
+mod pieces;
+
+#[cfg(feature = "std")]
+pub(crate) use self::pieces::read_range;
 #[cfg(feature = "png")]
 mod png;
 #[cfg(feature = "webp")]
 mod webp;
 
+use alloc::borrow::Cow;
 use core::fmt;
 use core::ops::Range;
 
@@ -64,7 +79,13 @@ pub fn detect(prefix: &[u8]) -> Option<Format> {
     ];
     match prefix {
         [0xFF, 0xD8, 0xFF, ..] => Some(Format::Jpeg),
-        [b'I', b'I', 42, 0, ..] | [b'M', b'M', 0, 42, ..] => Some(Format::Tiff),
+        // TIFF, and raw formats with a TIFF structure under their own magic:
+        // Olympus ORF (IIRO, MMOR, IIRS) and Panasonic RW2 (IIU\0).
+        [b'I', b'I', 42, 0, ..]
+        | [b'M', b'M', 0, 42, ..]
+        | [b'I', b'I', b'R', b'O' | b'S', ..]
+        | [b'M', b'M', b'O', b'R', ..]
+        | [b'I', b'I', b'U', 0, ..] => Some(Format::Tiff),
         [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1A, b'\n', ..] => Some(Format::Png),
         [
             b'R',
@@ -280,22 +301,106 @@ pub(crate) fn tiff_payload<'a>(
     Ok((payload, position(0)))
 }
 
-/// Puts a new TIFF block into a JPEG, PNG or WebP file, or removes the
-/// Exif data when `tiff` is `None`. Only the Exif segment or chunk (and the
-/// container fields that depend on it) changes.
-pub(crate) fn splice(
-    data: &[u8],
+/// The XMP packet of a JPEG, TIFF, PNG or WebP file, as stored: the bytes
+/// of the XML, which exifkit does not parse. Returns `None` if there is none.
+///
+/// Where it is read from: the JPEG APP1 XMP segment (the standard packet;
+/// Extended XMP segments are not merged in), TIFF tag 0x02BC in IFD0, the
+/// PNG `iTXt` chunk `XML:com.adobe.xmp`, or the WebP `XMP ` chunk. Writing
+/// Exif never touches it.
+///
+/// XMP often repeats Exif fields (`exif:` and `tiff:` properties). After
+/// editing Exif, the two may disagree; which one wins is up to the reader.
+///
+/// # Errors
+///
+/// [`Error::UnknownFormat`], [`Error::Unsupported`] (HEIF, JPEG XL, a
+/// disabled feature, or compressed PNG XMP without `inflate`), or
+/// [`Error::Malformed`] if the container cannot be walked.
+pub fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
+    match detect(data).ok_or(Error::UnknownFormat)? {
+        #[cfg(feature = "jpeg")]
+        Format::Jpeg => Ok(jpeg::xmp(data)?.map(Cow::Borrowed)),
+        #[cfg(feature = "tiff")]
+        Format::Tiff => Ok(tiff_tag(data, 0x02BC).map(Cow::Borrowed)),
+        #[cfg(feature = "png")]
+        Format::Png => png::xmp(data),
+        #[cfg(feature = "webp")]
+        Format::WebP => Ok(webp::chunk_data(data, b"XMP ")?.map(Cow::Borrowed)),
+        format => Err(unreadable(format)),
+    }
+}
+
+/// The ICC color profile of a JPEG, TIFF, PNG or WebP file, as stored.
+/// Returns `None` if there is none.
+///
+/// Where it is read from: the JPEG APP2 `ICC_PROFILE` segments (joined in
+/// sequence order), TIFF tag 0x8773 in IFD0, the PNG `iCCP` chunk
+/// (inflated, so it needs the `inflate` feature), or the WebP `ICCP` chunk.
+/// Writing Exif never touches it.
+///
+/// # Errors
+///
+/// As [`xmp`], plus [`Error::Malformed`] for JPEG profile segments that
+/// are missing or inconsistent, and [`Error::Unsupported`] for a PNG
+/// profile without the `inflate` feature.
+pub fn icc_profile(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
+    match detect(data).ok_or(Error::UnknownFormat)? {
+        #[cfg(feature = "jpeg")]
+        Format::Jpeg => Ok(jpeg::icc(data)?.map(Cow::Owned)),
+        #[cfg(feature = "tiff")]
+        Format::Tiff => Ok(tiff_tag(data, 0x8773).map(Cow::Borrowed)),
+        #[cfg(feature = "png")]
+        Format::Png => Ok(png::icc(data)?.map(Cow::Owned)),
+        #[cfg(feature = "webp")]
+        Format::WebP => Ok(webp::chunk_data(data, b"ICCP")?.map(Cow::Borrowed)),
+        format => Err(unreadable(format)),
+    }
+}
+
+/// The error for a format whose extras cannot be read.
+fn unreadable(format: Format) -> Error {
+    Error::Unsupported {
+        what: match format {
+            Format::Heif | Format::Jxl => "HEIF and JPEG XL are not readable yet",
+            _ => "this format (its feature is disabled)",
+        },
+    }
+}
+
+/// The bytes of a tag in IFD0 of a TIFF file.
+#[cfg(feature = "tiff")]
+fn tiff_tag(data: &[u8], tag: u16) -> Option<&[u8]> {
+    let header = crate::tiff::Header::parse(data).ok()?;
+    let reader = crate::tiff::Reader::new(data, header.byte_order);
+    let ifd0 = crate::tiff::RawIfd::parse(reader, header.ifd0_offset)?;
+    ifd0.entries().find(|e| e.tag == tag)?.data().ok()
+}
+
+/// Plans putting a new TIFF block into a JPEG, PNG or WebP file, or
+/// removing the Exif data when `tiff` is `None`. Only the Exif segment or
+/// chunk (and the container fields that depend on it) changes; everything
+/// else is a range copied from the original.
+pub(crate) fn plan(
+    input: &mut impl Input,
     format: Format,
     tiff: Option<&[u8]>,
-) -> Result<alloc::vec::Vec<u8>> {
-    let _ = (data, tiff);
+) -> Result<pieces::Pieces> {
+    let _ = tiff;
+    #[cfg_attr(
+        not(any(feature = "jpeg", feature = "png", feature = "webp")),
+        allow(unused_variables)
+    )]
+    let len = input.len()?.ok_or(Error::Unsupported {
+        what: "stream of unknown length",
+    })?;
     match format {
         #[cfg(feature = "jpeg")]
-        Format::Jpeg => jpeg::splice(data, tiff),
+        Format::Jpeg => jpeg::plan(input, len, tiff),
         #[cfg(feature = "png")]
-        Format::Png => png::splice(data, tiff),
+        Format::Png => png::plan(input, len, tiff),
         #[cfg(feature = "webp")]
-        Format::WebP => webp::splice(data, tiff),
+        Format::WebP => webp::plan(input, len, tiff),
         Format::Tiff => Err(Error::Unsupported {
             what: "removing Exif from a TIFF file (its metadata is the file's structure)",
         }),
@@ -304,6 +409,16 @@ pub(crate) fn splice(
             what: "writing this format (not supported, or its feature is disabled)",
         }),
     }
+}
+
+/// [`plan`] applied to a file held in memory.
+pub(crate) fn splice(
+    data: &[u8],
+    format: Format,
+    tiff: Option<&[u8]>,
+) -> Result<alloc::vec::Vec<u8>> {
+    let mut input = Slice(data);
+    plan(&mut input, format, tiff)?.to_vec(&mut input)
 }
 
 /// Reports that the container ends before a structure it declares.
@@ -324,6 +439,10 @@ mod tests {
         assert_eq!(detect(&[0xFF, 0xD8, 0xFF, 0xE0]), Some(Format::Jpeg));
         assert_eq!(detect(b"II*\0\x08\0\0\0"), Some(Format::Tiff));
         assert_eq!(detect(b"MM\0*\0\0\0\x08"), Some(Format::Tiff));
+        assert_eq!(detect(b"IIRO\x08\0\0\0"), Some(Format::Tiff));
+        assert_eq!(detect(b"MMOR\0\0\0\x08"), Some(Format::Tiff));
+        assert_eq!(detect(b"IIRS\x08\0\0\0"), Some(Format::Tiff));
+        assert_eq!(detect(b"IIU\0\x18\0\0\0"), Some(Format::Tiff));
         assert_eq!(detect(b"\x89PNG\r\n\x1a\n\0\0"), Some(Format::Png));
         assert_eq!(detect(b"RIFF\0\0\0\0WEBPVP8X"), Some(Format::WebP));
         assert_eq!(detect(b"\0\0\0\x18ftypheic\0\0\0\0"), Some(Format::Heif));
@@ -341,5 +460,19 @@ mod tests {
             locate(b"GIF89a......."),
             Err(Error::UnknownFormat)
         ));
+    }
+
+    #[test]
+    #[cfg(feature = "tiff")]
+    fn tiff_extras_come_from_ifd0() {
+        // IFD0 with XMLPacket (BYTE) and InterColorProfile (UNDEFINED).
+        let mut tiff = b"II*\0\x08\0\0\0\x02\0".to_vec();
+        tiff.extend_from_slice(&[0xBC, 0x02, 1, 0, 6, 0, 0, 0, 38, 0, 0, 0]);
+        tiff.extend_from_slice(&[0x73, 0x87, 7, 0, 5, 0, 0, 0, 44, 0, 0, 0]);
+        tiff.extend_from_slice(&[0; 4]);
+        tiff.extend_from_slice(b"<x:x/>icc!!");
+        assert_eq!(xmp(&tiff).unwrap().as_deref(), Some(&b"<x:x/>"[..]));
+        assert_eq!(icc_profile(&tiff).unwrap().as_deref(), Some(&b"icc!!"[..]));
+        assert!(matches!(xmp(b"GIF89a"), Err(Error::UnknownFormat)));
     }
 }

@@ -4,6 +4,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
+use super::pieces::Pieces;
 use super::{Encoding, Format, Input, Located, truncated};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics};
 use crate::error::{Error, Result};
@@ -177,18 +178,24 @@ fn check_crc(input: &mut impl Input, chunk: &Chunk, diagnostics: &mut Diagnostic
 
 /// If a text chunk carries an Exif raw profile, returns how to decode it.
 fn raw_profile(input: &mut impl Input, chunk: &Chunk) -> Result<Option<Encoding>> {
-    let longest = RAW_PROFILE_KEYWORDS
-        .iter()
-        .map(|k| k.len())
-        .max()
-        .unwrap_or(0);
+    raw_profile_with(input, chunk, RAW_PROFILE_KEYWORDS)
+}
+
+/// If a text chunk is a raw profile under one of `keywords`, returns how to
+/// decode it.
+fn raw_profile_with(
+    input: &mut impl Input,
+    chunk: &Chunk,
+    keywords: &[&[u8]],
+) -> Result<Option<Encoding>> {
+    let longest = keywords.iter().map(|k| k.len()).max().unwrap_or(0);
     let mut head = [0u8; 32];
     let available = usize::try_from(chunk.data.end.saturating_sub(chunk.data.start)).unwrap_or(0);
     let head = head.get_mut(..available.min(32)).unwrap_or_default();
     if head.len() <= longest || !input.read_at(chunk.data.start, head)? {
         return Ok(None);
     }
-    let Some(keyword) = RAW_PROFILE_KEYWORDS
+    let Some(keyword) = keywords
         .iter()
         .find(|k| head.starts_with(k) && head.get(k.len()) == Some(&0))
     else {
@@ -249,14 +256,7 @@ pub(super) fn decode_raw_profile(
     let malformed = |reason| Error::Malformed { offset: 0, reason };
     let inflated;
     let text = if compressed {
-        inflated =
-            miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(text, limit).map_err(|e| {
-                if e.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput {
-                    Error::LimitExceeded(Limit::Alloc)
-                } else {
-                    malformed("invalid zlib data in PNG text chunk")
-                }
-            })?;
+        inflated = inflate(text, limit)?;
         &inflated[..]
     } else {
         text
@@ -290,41 +290,173 @@ pub(super) fn decode_raw_profile(
     Ok(out)
 }
 
+/// Inflates zlib data, failing past `limit` output bytes.
+#[cfg(feature = "inflate")]
+fn inflate(data: &[u8], limit: usize) -> Result<Vec<u8>> {
+    miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(data, limit).map_err(|e| {
+        if e.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput {
+            Error::LimitExceeded(crate::limits::Limit::Alloc)
+        } else {
+            Error::Malformed {
+                offset: 0,
+                reason: "invalid zlib data in PNG chunk",
+            }
+        }
+    })
+}
+
+/// Splits a chunk's data at its NUL-terminated keyword.
+fn keyword<'a>(data: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
+    let body = span.body(data);
+    let nul = body.iter().position(|&b| b == 0)?;
+    Some((body.get(..nul)?, body.get(nul.saturating_add(1)..)?))
+}
+
+/// Output cap for inflating a PNG metadata chunk. Absolute, since ICC
+/// lookup tables and padded XMP compress far better than any fixed ratio;
+/// inflating stops at the cap, so a zlib bomb still cannot exhaust memory.
+#[cfg(feature = "inflate")]
+const INFLATE_LIMIT: usize = 64 * 1024 * 1024;
+
+/// The XMP packet: the `iTXt` chunk with keyword `XML:com.adobe.xmp`.
+pub(super) fn xmp(data: &[u8]) -> Result<Option<alloc::borrow::Cow<'_, [u8]>>> {
+    use alloc::borrow::Cow;
+
+    let (spans, _) = spans(
+        &mut super::Slice(data),
+        u64::try_from(data.len()).unwrap_or(u64::MAX),
+    )?;
+    for span in spans.iter().filter(|s| &s.kind == b"iTXt") {
+        let Some((b"XML:com.adobe.xmp", rest)) = keyword(data, span) else {
+            continue;
+        };
+        // Compression flag and method, then language and translated keyword.
+        let &[flag, _method, ref rest @ ..] = rest else {
+            continue;
+        };
+        let mut fields = rest.splitn(3, |&b| b == 0);
+        let (Some(_), Some(_), Some(text)) = (fields.next(), fields.next(), fields.next()) else {
+            continue;
+        };
+        if flag == 0 {
+            return Ok(Some(Cow::Borrowed(text)));
+        }
+        #[cfg(feature = "inflate")]
+        return inflate(text, INFLATE_LIMIT).map(|t| Some(Cow::Owned(t)));
+        #[cfg(not(feature = "inflate"))]
+        return Err(Error::Unsupported {
+            what: "compressed PNG XMP (enable the `inflate` feature)",
+        });
+    }
+    #[cfg(feature = "png-legacy")]
+    if let Some(xmp) = legacy_xmp(data, &spans)? {
+        return Ok(Some(Cow::Owned(xmp)));
+    }
+    Ok(None)
+}
+
+/// **quirk:** ImageMagick stores XMP as a hex `Raw profile type xmp` text
+/// chunk, like its legacy Exif profiles. Read when there is no `iTXt` XMP.
+#[cfg(feature = "png-legacy")]
+fn legacy_xmp(data: &[u8], spans: &[Span]) -> Result<Option<Vec<u8>>> {
+    for span in spans
+        .iter()
+        .filter(|s| matches!(&s.kind, b"tEXt" | b"zTXt" | b"iTXt"))
+    {
+        let chunk = Chunk {
+            kind: span.kind,
+            data: span.data(),
+            crc: None,
+        };
+        let found = raw_profile_with(&mut super::Slice(data), &chunk, &[b"Raw profile type xmp"])?;
+        let Some(Encoding::PngRawProfile {
+            compressed,
+            text_offset,
+        }) = found
+        else {
+            continue;
+        };
+        let text = span
+            .body(data)
+            .get(index(u64::from(text_offset))..)
+            .unwrap_or_default();
+        return decode_raw_profile(text, compressed, INFLATE_LIMIT).map(Some);
+    }
+    Ok(None)
+}
+
+/// The ICC profile: the `iCCP` chunk, inflated.
+pub(super) fn icc(data: &[u8]) -> Result<Option<Vec<u8>>> {
+    let (spans, _) = spans(
+        &mut super::Slice(data),
+        u64::try_from(data.len()).unwrap_or(u64::MAX),
+    )?;
+    let Some(span) = spans.iter().find(|s| &s.kind == b"iCCP") else {
+        return Ok(None);
+    };
+    // Profile name, NUL, compression method (0 = zlib), then the data.
+    let Some((_, &[0, ref compressed @ ..])) = keyword(data, span) else {
+        return Err(malformed(span.start, "invalid iCCP chunk"));
+    };
+    #[cfg(feature = "inflate")]
+    return inflate(compressed, INFLATE_LIMIT).map(Some);
+    #[cfg(not(feature = "inflate"))]
+    {
+        let _ = compressed;
+        Err(Error::Unsupported {
+            what: "PNG ICC profile (enable the `inflate` feature)",
+        })
+    }
+}
+
 /// A chunk as byte offsets into the file: `start..end` covers length,
 /// type, data and CRC.
 struct Span {
     kind: [u8; 4],
-    start: usize,
-    end: usize,
+    start: u64,
+    end: u64,
 }
 
-fn malformed(offset: usize, reason: &'static str) -> Error {
-    Error::Malformed {
-        offset: u64::try_from(offset).unwrap_or(u64::MAX),
-        reason,
+impl Span {
+    /// The chunk's data range (without length, type and CRC).
+    fn data(&self) -> Range<u64> {
+        self.start.saturating_add(8)..self.end.saturating_sub(4)
+    }
+
+    /// The chunk's data, from a file held in memory.
+    fn body<'a>(&self, data: &'a [u8]) -> &'a [u8] {
+        let range = self.data();
+        data.get(index(range.start)..index(range.end))
+            .unwrap_or_default()
     }
 }
 
-/// Splits a PNG into its chunks, through IEND. Returns them and where the
-/// bytes after IEND (copied verbatim) start.
-fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
-    if data.get(..8) != Some(&SIGNATURE[..]) {
+fn index(offset: u64) -> usize {
+    usize::try_from(offset).unwrap_or(usize::MAX)
+}
+
+const fn malformed(offset: u64, reason: &'static str) -> Error {
+    Error::Malformed { offset, reason }
+}
+
+/// Splits a PNG into its chunks, through IEND, reading only chunk headers.
+/// Returns them and where the bytes after IEND (copied verbatim) start.
+fn spans(input: &mut impl Input, len: u64) -> Result<(Vec<Span>, u64)> {
+    if input.array::<8>(0)? != Some(SIGNATURE) {
         return Err(malformed(0, "not a PNG"));
     }
     let mut spans = Vec::new();
-    let mut at = 8usize;
-    while at < data.len() {
-        let Some(&[l0, l1, l2, l3, k0, k1, k2, k3]) = data.get(at..at.saturating_add(8)) else {
+    let mut at = 8u64;
+    while at < len {
+        let Some([l0, l1, l2, l3, k0, k1, k2, k3]) = input.array::<8>(at)? else {
             return Err(malformed(at, "truncated PNG chunk"));
         };
-        let len = u32::from_be_bytes([l0, l1, l2, l3]);
-        if len > MAX_CHUNK {
+        let length = u32::from_be_bytes([l0, l1, l2, l3]);
+        if length > MAX_CHUNK {
             return Err(malformed(at, "invalid PNG chunk length"));
         }
-        let end = at
-            .saturating_add(12)
-            .saturating_add(usize::try_from(len).unwrap_or(usize::MAX));
-        if end > data.len() {
+        let end = at.saturating_add(12).saturating_add(u64::from(length));
+        if end > len {
             return Err(malformed(at, "truncated PNG chunk"));
         }
         let kind = [k0, k1, k2, k3];
@@ -345,54 +477,52 @@ fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
 /// always does. `Raw profile type APP1` is a generic APP1 container that
 /// can hold XMP too, so it counts only if its payload decodes to Exif;
 /// without `png-legacy` it cannot be decoded and is kept.
-fn is_raw_profile(data: &[u8], span: &Span) -> bool {
+fn is_raw_profile(input: &mut impl Input, span: &Span) -> Result<bool> {
+    const EXIF: &[u8; 22] = b"Raw profile type exif\0";
     if !matches!(&span.kind, b"tEXt" | b"zTXt" | b"iTXt") {
-        return false;
+        return Ok(false);
     }
     let chunk = Chunk {
         kind: span.kind,
-        data: u64::try_from(span.start.saturating_add(8)).unwrap_or(u64::MAX)
-            ..u64::try_from(span.end.saturating_sub(4)).unwrap_or(0),
+        data: span.data(),
         crc: None,
     };
-    let Some(encoding) = raw_profile(&mut super::Slice(data), &chunk).ok().flatten() else {
-        return false;
+    let Some(encoding) = raw_profile(input, &chunk)? else {
+        return Ok(false);
     };
-    let keyword = data
-        .get(span.start.saturating_add(8)..span.end)
-        .unwrap_or_default();
-    if keyword.starts_with(b"Raw profile type exif\0") {
-        return true;
+    if input.array::<22>(chunk.data.start)?.as_ref() == Some(EXIF) {
+        return Ok(true);
     }
-    is_exif_payload(data, &chunk, encoding)
+    is_exif_payload(input, &chunk, encoding)
 }
 
 #[cfg(feature = "png-legacy")]
-fn is_exif_payload(data: &[u8], chunk: &Chunk, encoding: Encoding) -> bool {
+fn is_exif_payload(input: &mut impl Input, chunk: &Chunk, encoding: Encoding) -> Result<bool> {
+    // Cap the work on huge profiles; an Exif profile that big is kept.
+    const MAX: u64 = 1 << 24;
     let Encoding::PngRawProfile {
         compressed,
         text_offset,
     } = encoding
     else {
-        return false;
+        return Ok(false);
     };
-    let start = usize::try_from(chunk.data.start)
-        .unwrap_or(usize::MAX)
-        .saturating_add(usize::try_from(text_offset).unwrap_or(usize::MAX));
-    let end = usize::try_from(chunk.data.end).unwrap_or(0);
-    let Some(text) = data.get(start..end) else {
-        return false;
-    };
-    // Cap the work on huge profiles; an Exif profile that big is kept.
-    decode_raw_profile(text, compressed, 1 << 24).is_ok_and(|payload| {
-        let tiff = payload.strip_prefix(b"Exif\0\0").unwrap_or(&payload);
-        tiff.starts_with(b"II*\0") || tiff.starts_with(b"MM\0*")
-    })
+    let start = chunk.data.start.saturating_add(u64::from(text_offset));
+    if start >= chunk.data.end || chunk.data.end.saturating_sub(start) > MAX {
+        return Ok(false);
+    }
+    let text = super::pieces::read_range(input, start..chunk.data.end)?;
+    Ok(
+        decode_raw_profile(&text, compressed, 1 << 24).is_ok_and(|payload| {
+            let tiff = payload.strip_prefix(b"Exif\0\0").unwrap_or(&payload);
+            tiff.starts_with(b"II*\0") || tiff.starts_with(b"MM\0*")
+        }),
+    )
 }
 
 #[cfg(not(feature = "png-legacy"))]
-fn is_exif_payload(_: &[u8], _: &Chunk, _: Encoding) -> bool {
-    false
+fn is_exif_payload(_: &mut impl Input, _: &Chunk, _: Encoding) -> Result<bool> {
+    Ok(false)
 }
 
 /// An `eXIf` chunk holding `tiff`.
@@ -412,13 +542,14 @@ fn exif_chunk(tiff: &[u8]) -> Result<Vec<u8>> {
     Ok(chunk)
 }
 
-/// Replaces the `eXIf` chunk with one holding `tiff` (inserting it before
-/// the first IDAT if there is none), or removes it when `tiff` is `None`.
-/// PNG allows one `eXIf`, so extra ones are removed, and legacy raw-profile
-/// Exif text chunks are removed too: left in place they would contradict
-/// the new data. Everything else is copied verbatim.
-pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
-    let (spans, rest) = spans(data)?;
+/// Plans replacing the `eXIf` chunk with one holding `tiff` (inserting it
+/// before the first IDAT if there is none), or removing it when `tiff` is
+/// `None`. PNG allows one `eXIf`, so extra ones are removed, and legacy
+/// raw-profile Exif text chunks are removed too: left in place they would
+/// contradict the new data. Everything else is copied verbatim. Only chunk
+/// headers and text-chunk keywords are read.
+pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Result<Pieces> {
+    let (spans, rest) = spans(input, len)?;
     let new_chunk = tiff.map(exif_chunk).transpose()?;
     let target = spans.iter().position(|s| &s.kind == b"eXIf");
     let insert_at = match (target, &new_chunk) {
@@ -430,34 +561,31 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
         ),
         _ => None,
     };
-    let mut out = Vec::with_capacity(
-        data.len()
-            .saturating_add(new_chunk.as_ref().map_or(0, Vec::len)),
-    );
-    out.extend_from_slice(&SIGNATURE);
+    let mut out = Pieces::default();
+    out.bytes(SIGNATURE);
     for (index, span) in spans.iter().enumerate() {
         if Some(index) == insert_at
             && let Some(new) = &new_chunk
         {
-            out.extend_from_slice(new);
+            out.bytes(new.clone());
         }
         if Some(index) == target {
             if let Some(new) = &new_chunk {
-                out.extend_from_slice(new);
+                out.bytes(new.clone());
             }
             continue;
         }
-        if &span.kind == b"eXIf" || is_raw_profile(data, span) {
+        if &span.kind == b"eXIf" || is_raw_profile(input, span)? {
             continue;
         }
-        out.extend_from_slice(data.get(span.start..span.end).unwrap_or_default());
+        out.copy(span.start..span.end);
     }
     if insert_at == Some(spans.len())
         && let Some(new) = &new_chunk
     {
-        out.extend_from_slice(new);
+        out.bytes(new.clone());
     }
-    out.extend_from_slice(data.get(rest..).unwrap_or_default());
+    out.copy(rest..len);
     Ok(out)
 }
 
@@ -592,6 +720,13 @@ mod splice_tests {
     use alloc::vec::Vec;
 
     use super::*;
+
+    /// The plan, run over a file held in memory.
+    fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
+        let mut input = crate::container::Slice(data);
+        let len = u64::try_from(data.len()).unwrap();
+        plan(&mut input, len, tiff)?.to_vec(&mut input)
+    }
     use crate::container::Slice;
 
     const TIFF: &[u8] = b"II*\0\x08\0\0\0\0\0\0\0\0\0";
@@ -615,10 +750,11 @@ mod splice_tests {
     }
 
     fn crcs_valid(data: &[u8]) -> bool {
-        let (spans, _) = spans(data).unwrap();
+        let (spans, _) = spans(&mut Slice(data), data.len() as u64).unwrap();
         spans.iter().all(|s| {
-            let body = &data[s.start + 4..s.end - 4];
-            let crc = u32::from_be_bytes(data[s.end - 4..s.end].try_into().unwrap());
+            let (start, end) = (s.start as usize, s.end as usize);
+            let body = &data[start + 4..end - 4];
+            let crc = u32::from_be_bytes(data[end - 4..end].try_into().unwrap());
             crc32(&[body]) == crc
         })
     }
@@ -702,5 +838,55 @@ mod splice_tests {
             splice(&cut, Some(TIFF)),
             Err(Error::Malformed { .. })
         ));
+    }
+
+    #[test]
+    fn extracts_xmp_from_itxt() {
+        let itxt = chunk(b"iTXt", b"XML:com.adobe.xmp\0\0\0\0\0<x:xmpmeta/>");
+        let other = chunk(b"iTXt", b"Comment\0\0\0\0\0hello");
+        let data = png(&[
+            chunk(b"IHDR", &[0; 13]),
+            other,
+            itxt,
+            chunk(b"IDAT", b"pixels"),
+        ]);
+        assert_eq!(xmp(&data).unwrap().as_deref(), Some(&b"<x:xmpmeta/>"[..]));
+        assert_eq!(xmp(&png(&[chunk(b"IDAT", b"pixels")])).unwrap(), None);
+        assert_eq!(icc(&png(&[chunk(b"IDAT", b"pixels")])).unwrap(), None);
+    }
+
+    #[test]
+    #[cfg(feature = "inflate")]
+    fn inflates_iccp_and_compressed_xmp() {
+        // Highly compressible, as ICC lookup tables are: far beyond 4:1.
+        let profile = &[7u8; 300_000][..];
+        let mut iccp = b"sRGB\0\0".to_vec();
+        iccp.extend(miniz_oxide::deflate::compress_to_vec_zlib(profile, 6));
+        let mut itxt = b"XML:com.adobe.xmp\0\x01\0\0\0".to_vec();
+        itxt.extend(miniz_oxide::deflate::compress_to_vec_zlib(
+            b"<x:xmpmeta/>",
+            6,
+        ));
+        let data = png(&[
+            chunk(b"iCCP", &iccp),
+            chunk(b"iTXt", &itxt),
+            chunk(b"IDAT", b"pixels"),
+        ]);
+        assert_eq!(icc(&data).unwrap().as_deref(), Some(profile));
+        assert_eq!(xmp(&data).unwrap().as_deref(), Some(&b"<x:xmpmeta/>"[..]));
+        // Writing Exif leaves both alone.
+        let written = splice(&data, Some(TIFF)).unwrap();
+        assert_eq!(icc(&written).unwrap().as_deref(), Some(profile));
+        // A non-zlib method is refused.
+        let data = png(&[chunk(b"iCCP", b"sRGB\0\x01junk"), chunk(b"IDAT", b"pixels")]);
+        assert!(matches!(icc(&data), Err(Error::Malformed { .. })));
+    }
+
+    #[test]
+    #[cfg(feature = "png-legacy")]
+    fn reads_legacy_raw_profile_xmp() {
+        let text = b"Raw profile type xmp\0\nxmp\n   4\n3c782f3e\n";
+        let data = png(&[chunk(b"tEXt", text), chunk(b"IDAT", b"pixels")]);
+        assert_eq!(xmp(&data).unwrap().as_deref(), Some(&b"<x/>"[..]));
     }
 }

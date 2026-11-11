@@ -220,6 +220,8 @@ fn render_enums(table: &Table) -> String {
     line(w, "");
     line(w, "use core::fmt;");
     line(w, "");
+    line(w, "use crate::set::IntoValue;");
+    line(w, "use crate::tag::Tag;");
     line(w, "use crate::value::{FromValue, Value, ValueError};");
     for e in &table.enums {
         let users: Vec<&Tag> = table
@@ -327,6 +329,17 @@ fn render_enum(w: &mut String, e: &Enum, users: &[&Tag]) {
     line(
         w,
         "fn from_value(value: &Value) -> Result<Self, ValueError> { u16::from_value(value).map(Self::from_u16) }",
+    );
+    line(w, "}");
+    line(w, "");
+    line(
+        w,
+        "/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.",
+    );
+    let _ = writeln!(w, "impl IntoValue for {name} {{");
+    line(
+        w,
+        "fn into_value(self, tag: Tag) -> Result<Value, ValueError> { self.to_u16().into_value(tag) }",
     );
     line(w, "}");
     line(w, "");

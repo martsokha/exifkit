@@ -1,0 +1,342 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 1,
+      "name": "PanasonicRawVersion",
+      "value": "0300"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 2,
+      "name": "SensorWidth",
+      "value": 3724
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 3,
+      "name": "SensorHeight",
+      "value": 2754
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 4,
+      "name": "SensorTopBorder",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 5,
+      "name": "SensorLeftBorder",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 6,
+      "name": "SensorBottomBorder",
+      "value": 2742
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 7,
+      "name": "SensorRightBorder",
+      "value": 3656
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 8,
+      "name": "SamplesPerPixel",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 9,
+      "name": "CFAPattern",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 10,
+      "name": "BitsPerSample",
+      "value": 12
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 11,
+      "name": "Compression",
+      "value": 34316
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 13,
+      "name": "PanasonicRaw_0x000d",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 14,
+      "name": "LinearityLimitRed",
+      "value": 4095
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 15,
+      "name": "LinearityLimitGreen",
+      "value": 4095
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 16,
+      "name": "LinearityLimitBlue",
+      "value": 4095
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 23,
+      "name": "ISO",
+      "value": 80
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 24,
+      "name": "HighISOMultiplierRed",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 25,
+      "name": "HighISOMultiplierGreen",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 26,
+      "name": "HighISOMultiplierBlue",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 27,
+      "name": "NoiseReductionParams",
+      "value": "3 100 1 1 1 200 2 2 2 400 4 4 4"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 28,
+      "name": "BlackLevelRed",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 29,
+      "name": "BlackLevelGreen",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 30,
+      "name": "BlackLevelBlue",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 36,
+      "name": "WBRedLevel",
+      "value": 570
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 37,
+      "name": "WBGreenLevel",
+      "value": 263
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 38,
+      "name": "WBBlueLevel",
+      "value": 438
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 45,
+      "name": "RawFormat",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 46,
+      "name": "JpgFromRaw",
+      "value": "(Binary data 10785 bytes, use -b option to extract)"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Panasonic"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "DMC-LX3"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 4294967295
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 2754
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 20511792
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 280,
+      "name": "RawDataOffset",
+      "value": 12322
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "PanasonicRaw_0x011a",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.004
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0221"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2008:08:06 15:21:56"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2008:08:06 15:21:56"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 16
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 5.1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41728,
+      "name": "FileSource",
+      "value": 3
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

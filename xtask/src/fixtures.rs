@@ -142,7 +142,7 @@ pub fn golden(root: &Path) -> Result<(), String> {
                 fixture.rel().display()
             ));
         }
-        let mut args: Vec<String> = ["-j", "-D", "-n", "-a", "-u", "-G1:4"]
+        let mut args: Vec<String> = ["-j", "-D", "-n", "-a", "-u", "-G1:3:4"]
             .iter()
             .map(|s| (*s).to_owned())
             .collect();
@@ -181,25 +181,29 @@ pub fn golden(root: &Path) -> Result<(), String> {
 }
 
 /// Keeps the compared groups, numeric tag ids only, ordered by group, copy
-/// number and id. Keys look like `IFD0:Copy1:Make` because of `-G1:4`.
+/// number and id. Keys look like `IFD0:Main:Copy1:Make` because of
+/// `-G1:3:4`. Tags from embedded documents (family 3 `Doc1`, `Doc2`, …, such
+/// as the JPEG preview inside an RW2 file) are dropped: they are not part of
+/// the file's own Exif.
 fn normalize(object: &Map<String, Value>, version: &str) -> Value {
     let mut entries = Vec::new();
     let mut warnings = Vec::new();
     for (key, item) in object {
-        let mut parts = key.split(':');
-        let (Some(group), Some(second)) = (parts.next(), parts.next()) else {
+        let parts: Vec<&str> = key.split(':').collect();
+        let (Some(&group), Some(&name)) = (parts.first(), parts.last()) else {
             continue;
         };
-        let (copy, name) = match parts.next() {
-            Some(name) => (
-                second
-                    .strip_prefix("Copy")
-                    .and_then(|n| n.parse().ok())
-                    .unwrap_or(0),
-                name,
-            ),
-            None => (0u32, second),
-        };
+        if parts.len() < 2 {
+            continue;
+        }
+        let middle = parts.get(1..parts.len() - 1).unwrap_or_default();
+        if middle.iter().any(|p| p.starts_with("Doc")) {
+            continue;
+        }
+        let copy: u32 = middle
+            .iter()
+            .find_map(|p| p.strip_prefix("Copy")?.parse().ok())
+            .unwrap_or(0);
         if group == "ExifTool" && name == "Warning" {
             if let Some(text) = item.get("val").and_then(Value::as_str) {
                 warnings.push(text.to_owned());

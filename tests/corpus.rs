@@ -47,8 +47,31 @@ fn goldens(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Maps an ExifTool family-1 group to the IFDs it can correspond to.
-fn ifds_for(group: &str) -> Option<Vec<IfdKind>> {
+/// Maps an ExifTool family-1 group to the IFDs it can correspond to, most
+/// likely first. ExifTool names IFD0's SubIFDs `SubIFD`, `SubIFD1`,
+/// `SubIFD2`... by index, so that one comes first; nested SubIFDs reuse the
+/// names, so every other SubIFD follows as a fallback.
+fn ifds_for(exif: &Exif, group: &str) -> Option<Vec<IfdKind>> {
+    if let Some(index) = group.strip_prefix("SubIFD") {
+        let index: usize = if index.is_empty() {
+            0
+        } else {
+            index.parse().ok()?
+        };
+        let mut kinds: Vec<IfdKind> = exif
+            .ifds()
+            .iter()
+            .filter(|i| {
+                matches!(i.kind(), IfdKind::SubIfd(_)) && i.parent() == Some(IfdKind::Primary)
+            })
+            .map(|i| i.kind())
+            .skip(index)
+            .take(1)
+            .collect();
+        let first = kinds.first().copied();
+        kinds.extend((0..64).map(IfdKind::SubIfd).filter(|&k| Some(k) != first));
+        return Some(kinds);
+    }
     Some(match group {
         "IFD0" => vec![IfdKind::Primary],
         "IFD1" => vec![IfdKind::Thumbnail],
@@ -56,7 +79,6 @@ fn ifds_for(group: &str) -> Option<Vec<IfdKind>> {
         "ExifIFD" => vec![IfdKind::Exif],
         "GPS" => vec![IfdKind::Gps],
         "InteropIFD" => vec![IfdKind::Interop],
-        g if g.starts_with("SubIFD") => (0..64).map(IfdKind::SubIfd).collect(),
         _ => return None,
     })
 }
@@ -85,6 +107,15 @@ fn skip(ns: Namespace, id: u16) -> bool {
         ),
         _ => false,
     }
+}
+
+/// Panasonic RW2 IFD0 tags ExifTool reformats (`NoiseReductionParams` as
+/// int16u) or parses as binary sub-directories (0x0027 WBInfo2, 0x0119
+/// distortion info). The tag numbers mean other things outside RW2.
+fn skip_rw2(data: &[u8], kind: IfdKind, id: u16) -> bool {
+    data.get(..4) == Some(b"IIU\0")
+        && kind == IfdKind::Primary
+        && matches!(id, 0x001B | 0x0027 | 0x0119)
 }
 
 fn f64s(value: &Value) -> Option<Vec<f64>> {
@@ -342,11 +373,11 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
         let name = entry["name"].as_str().unwrap_or_default();
         let id = u16::try_from(entry["id"].as_u64().unwrap_or(u64::MAX)).unwrap_or(u16::MAX);
         let copy = usize::try_from(entry["copy"].as_u64().unwrap_or(0)).unwrap_or(0);
-        let Some(kinds) = ifds_for(group) else {
+        let Some(kinds) = ifds_for(&exif, group) else {
             continue;
         };
         let ns = namespace(kinds[0]);
-        if skip(ns, id) {
+        if skip(ns, id) || skip_rw2(data, kinds[0], id) {
             stats.skipped += 1;
             continue;
         }
@@ -436,7 +467,11 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
             _ => continue,
         };
         let id = entry.tag().id();
-        if skip(entry.tag().namespace(), id) || extra_ok(entry.tag()) || stopped_early(group) {
+        if skip(entry.tag().namespace(), id)
+            || skip_rw2(data, kind, id)
+            || extra_ok(entry.tag())
+            || stopped_early(group)
+        {
             continue;
         }
         if !reported.contains(&(group.to_owned(), u64::from(id))) {
@@ -808,7 +843,15 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
         else {
             continue;
         };
-        let edit_key = "EXIF:IFD0:ImageDescription".to_owned();
+        // Found by tag id: ExifTool's RW2 table has no name for 0x010E.
+        let id = Tag::IMAGE_DESCRIPTION.id().to_string();
+        let edit_key = after
+            .iter()
+            .find(|(k, v)| k.starts_with("EXIF:IFD0:") && v.iter().any(|(i, _)| *i == id))
+            .map_or_else(
+                || "EXIF:IFD0:ImageDescription".to_owned(),
+                |(k, _)| k.clone(),
+            );
         match after.remove(&edit_key) {
             Some(values)
                 if values.iter().any(|(_, v)| {
@@ -829,10 +872,25 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
             .flat_map(|ifd| ifd.duplicates().iter().map(|e| e.tag().id().to_string()))
             .collect();
         let maker_note_duplicated = duplicated.contains(&Tag::MAKER_NOTE.id().to_string());
+        // The writer drops strip and tile references that point past the end
+        // of the file (stripped samples), so those may go missing.
+        let dangling = exif.ifds().iter().any(|ifd| {
+            [Tag::STRIP_OFFSETS, Tag::TILE_OFFSETS].iter().any(|&tag| {
+                ifd.get(tag)
+                    .and_then(|e| Vec::<u32>::from_value(e.value()).ok())
+                    .is_some_and(|offsets| offsets.iter().any(|&o| o as usize >= data.len()))
+            })
+        });
+        let data_refs = ["273", "279", "324", "325"];
         checked += 1;
         for (key, values) in &before {
             if key.ends_with(":ThumbnailOffset")
                 || values.iter().any(|(id, _)| duplicated.contains(id))
+                || (dangling
+                    && !after.contains_key(key)
+                    && values
+                        .iter()
+                        .all(|(id, _)| data_refs.contains(&id.as_str())))
                 || ((maker_note_duplicated || broken_maker_note) && key.starts_with("MakerNotes:"))
             {
                 continue;
@@ -930,6 +988,37 @@ fn write_into_round_trips_and_keeps_image_data() {
                 let _ = writeln!(report, "{name}: rewritten file unreadable: {err}");
             }
         }
+        // Streaming gives exactly the same file.
+        let mut streamed = Vec::new();
+        match exif.write_stream(
+            std::io::Cursor::new(&data),
+            &mut streamed,
+            &exifkit::WriteOptions::DEFAULT,
+        ) {
+            Ok(()) if streamed == out => {}
+            Ok(()) => {
+                let _ = writeln!(report, "{name}: write_stream differs from write_into");
+            }
+            Err(err) => {
+                let _ = writeln!(report, "{name}: write_stream failed: {err}");
+            }
+        }
+        // XMP and ICC are never touched by an Exif write.
+        let extras = |file: &[u8]| {
+            (
+                exifkit::container::xmp(file)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.into_owned()),
+                exifkit::container::icc_profile(file)
+                    .ok()
+                    .flatten()
+                    .map(|x| x.into_owned()),
+            )
+        };
+        if extras(&data) != extras(&out) {
+            let _ = writeln!(report, "{name}: XMP or ICC changed");
+        }
         if let (Ok(before), Ok(after)) = (exifkit::remove_exif(&data), exifkit::remove_exif(&out)) {
             untouched += 1;
             if before != after {
@@ -941,4 +1030,70 @@ fn write_into_round_trips_and_keeps_image_data() {
         "corpus: wrote {written} files back ({untouched} checked byte for byte outside Exif); {refused} unsupported"
     );
     assert!(report.is_empty(), "write_into failures:\n{report}");
+}
+
+/// `exiftool -b -<tag>`: the raw bytes ExifTool extracts, or `None`.
+fn exiftool_binary(file: &Path, tag: &str) -> Option<Vec<u8>> {
+    let output = std::process::Command::new("exiftool")
+        .args(["-b", &format!("-{tag}")])
+        .arg(file)
+        .output()
+        .ok()?;
+    (!output.stdout.is_empty()).then_some(output.stdout)
+}
+
+/// The XMP packet and ICC profile exifkit extracts match ExifTool's, byte
+/// for byte. Needs ExifTool, so it is ignored by default.
+#[test]
+#[ignore = "needs exiftool"]
+fn xmp_and_icc_match_exiftool() {
+    let root = root();
+    let mut paths = Vec::new();
+    goldens(&root.join("tests/golden"), &mut paths);
+    paths.sort();
+    let external = root.join("tests/fixtures/external");
+    let (mut xmp, mut icc) = (0, 0);
+    let mut report = String::new();
+    for path in &paths {
+        let rel = path
+            .strip_prefix(root.join("tests/golden"))
+            .unwrap()
+            .with_extension("");
+        let file = external.join(&rel);
+        let Ok(data) = std::fs::read(&file) else {
+            continue;
+        };
+        let name = rel.display();
+        for (tag, ours, count) in [
+            ("XMP", exifkit::container::xmp(&data), &mut xmp),
+            (
+                "ICC_Profile",
+                exifkit::container::icc_profile(&data),
+                &mut icc,
+            ),
+        ] {
+            let theirs = exiftool_binary(&file, tag);
+            match (ours, theirs) {
+                (Ok(Some(ours)), Some(theirs)) if *ours == *theirs => *count += 1,
+                (Ok(None), None) => {}
+                (Ok(ours), theirs) => {
+                    let _ = writeln!(
+                        report,
+                        "{name}: {tag}: exifkit {:?} bytes, ExifTool {:?} bytes",
+                        ours.map(|o| o.len()),
+                        theirs.map(|t| t.len())
+                    );
+                }
+                (Err(err), theirs) => {
+                    let _ = writeln!(
+                        report,
+                        "{name}: {tag}: exifkit failed ({err}), ExifTool {:?} bytes",
+                        theirs.map(|t| t.len())
+                    );
+                }
+            }
+        }
+    }
+    eprintln!("extras: {xmp} XMP packets and {icc} ICC profiles match ExifTool");
+    assert!(report.is_empty(), "extraction mismatches:\n{report}");
 }

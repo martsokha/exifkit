@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Typed writing: `Exif::set` with the `IntoValue` trait. The tag table picks the
+  field type and checks the value (type, count, enumeration values), returning
+  the new `Error::InvalidValue`. UTF-8 text and Exif 3.0+ tags raise
+  `ExifVersion` to `"0300"`. Also `Exif::set_date_time_original`, `_digitized`
+  and `set_date_time` (writing the sub-second and offset tags too),
+  `EncodedText::new`, and `IntoValue` for the generated enums.
+- `Exif::write_stream`: the same output as `write_into`, but JPEG, PNG and WebP
+  image data is copied through without being held in memory.
+- `container::xmp` and `container::icc_profile`: the raw XMP packet and ICC
+  profile of JPEG, TIFF, PNG and WebP files.
+- Olympus ORF and Panasonic RW2 files (TIFF structures with their own magic
+  number). `tiff::Header` gains `magic` and `Header::new`; `write_into` keeps
+  the file's magic.
+- An `inflate` feature (zlib, for PNG `iCCP` and compressed XMP); `png-legacy`
+  now builds on it.
+
 - Writing into image files: `Exif::write_into` and `Exif::write_into_with` for
   JPEG, TIFF, PNG and WebP. Only the Exif data changes, as a minimal diff of
   the file's own block. Also `remove_exif`. JPEG checks the 64 KiB APP1 limit

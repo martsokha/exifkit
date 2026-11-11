@@ -169,11 +169,32 @@ pub struct Header {
     pub byte_order: ByteOrder,
     /// Offset of IFD0, relative to the start of the header.
     pub ifd0_offset: u32,
+    /// The magic number: [`Header::TIFF`] (42), or a raw format's own value
+    /// for a TIFF structure under another name.
+    pub magic: u16,
 }
 
 impl Header {
     /// Size of the header, in bytes.
     pub const LEN: usize = 8;
+    /// Olympus ORF (`IIRO` or `MMOR`).
+    pub const ORF: u16 = 0x4F52;
+    /// Olympus ORF from some models (`IIRS`).
+    pub const ORF_RS: u16 = 0x5352;
+    /// Panasonic RW2 and Leica RWL (`IIU\0`).
+    pub const RW2: u16 = 0x55;
+    /// Standard TIFF.
+    pub const TIFF: u16 = 42;
+
+    /// Creates a standard TIFF header.
+    #[must_use]
+    pub const fn new(byte_order: ByteOrder, ifd0_offset: u32) -> Self {
+        Self {
+            byte_order,
+            ifd0_offset,
+            magic: Self::TIFF,
+        }
+    }
 
     /// Parses the header at the start of `data`.
     ///
@@ -182,7 +203,8 @@ impl Header {
     /// - [`Error::Unsupported`] for BigTIFF (magic 43).
     /// - [`Error::InvalidHeader`] if `data` is shorter than 8 bytes, the
     ///   byte-order mark or magic number is wrong, or IFD0 would overlap
-    ///   the header.
+    ///   the header. Besides 42, the ORF and RW2 magic numbers are accepted
+    ///   (their structure is TIFF).
     pub fn parse(data: &[u8]) -> Result<Self> {
         let Some(&[b0, b1, m0, m1, o0, o1, o2, o3]) = data.first_chunk::<8>() else {
             return Err(Error::InvalidHeader);
@@ -192,8 +214,9 @@ impl Header {
             [b'M', b'M'] => ByteOrder::BigEndian,
             _ => return Err(Error::InvalidHeader),
         };
-        match byte_order.u16([m0, m1]) {
-            42 => {}
+        let magic = byte_order.u16([m0, m1]);
+        match magic {
+            Self::TIFF | Self::ORF | Self::ORF_RS | Self::RW2 => {}
             43 => return Err(Error::Unsupported { what: "BigTIFF" }),
             _ => return Err(Error::InvalidHeader),
         }
@@ -204,6 +227,7 @@ impl Header {
         Ok(Self {
             byte_order,
             ifd0_offset,
+            magic,
         })
     }
 
@@ -211,10 +235,16 @@ impl Header {
     #[must_use]
     pub const fn to_bytes(self) -> [u8; 8] {
         let (mark, magic, offset) = match self.byte_order {
-            ByteOrder::LittleEndian => {
-                (*b"II", 42u16.to_le_bytes(), self.ifd0_offset.to_le_bytes())
-            }
-            ByteOrder::BigEndian => (*b"MM", 42u16.to_be_bytes(), self.ifd0_offset.to_be_bytes()),
+            ByteOrder::LittleEndian => (
+                *b"II",
+                self.magic.to_le_bytes(),
+                self.ifd0_offset.to_le_bytes(),
+            ),
+            ByteOrder::BigEndian => (
+                *b"MM",
+                self.magic.to_be_bytes(),
+                self.ifd0_offset.to_be_bytes(),
+            ),
         };
         [
             mark[0], mark[1], magic[0], magic[1], offset[0], offset[1], offset[2], offset[3],
@@ -229,17 +259,30 @@ mod tests {
     #[test]
     fn header_round_trips() {
         for byte_order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
-            let header = Header {
-                byte_order,
-                ifd0_offset: 8,
-            };
-            assert_eq!(Header::parse(&header.to_bytes()).ok(), Some(header));
+            for magic in [Header::TIFF, Header::ORF, Header::ORF_RS, Header::RW2] {
+                let header = Header {
+                    magic,
+                    ..Header::new(byte_order, 8)
+                };
+                assert_eq!(Header::parse(&header.to_bytes()).ok(), Some(header));
+            }
         }
     }
 
     #[test]
     fn header_rejects_bad_input() {
         assert!(matches!(Header::parse(b"II*\0"), Err(Error::InvalidHeader)));
+        // Raw formats spell their magic as letters.
+        assert_eq!(Header::parse(b"IIRO\x08\0\0\0").unwrap().magic, Header::ORF);
+        assert_eq!(Header::parse(b"MMOR\0\0\0\x08").unwrap().magic, Header::ORF);
+        assert_eq!(
+            Header::parse(b"IIRS\x08\0\0\0").unwrap().magic,
+            Header::ORF_RS
+        );
+        assert_eq!(
+            Header::parse(b"IIU\0\x18\0\0\0").unwrap().magic,
+            Header::RW2
+        );
         assert!(matches!(
             Header::parse(b"XX*\0\x08\0\0\0"),
             Err(Error::InvalidHeader)

@@ -1,0 +1,129 @@
+//! A rewritten file as a list of pieces: byte ranges copied from the
+//! original and new bytes. The container writers build one by walking the
+//! structure through [`Input`], reading only headers and the small chunks
+//! they must inspect, so the same plan serves an in-memory file and a
+//! stream, and image data is never held in memory when streaming.
+
+use alloc::vec::Vec;
+use core::ops::Range;
+
+use super::Input;
+use crate::error::{Error, Result};
+
+/// One piece of the output.
+pub(crate) enum Piece {
+    /// Bytes copied from the original.
+    Copy(Range<u64>),
+    /// New bytes.
+    Bytes(Vec<u8>),
+}
+
+/// Pieces and their total length.
+#[derive(Default)]
+pub(crate) struct Pieces {
+    list: Vec<Piece>,
+    len: u64,
+}
+
+impl Pieces {
+    pub(crate) fn bytes(&mut self, bytes: impl Into<Vec<u8>>) {
+        let bytes = bytes.into();
+        self.len = self
+            .len
+            .saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
+        if !bytes.is_empty() {
+            self.list.push(Piece::Bytes(bytes));
+        }
+    }
+
+    pub(crate) fn copy(&mut self, range: Range<u64>) {
+        self.len = self
+            .len
+            .saturating_add(range.end.saturating_sub(range.start));
+        if range.start < range.end {
+            // Merge with a directly preceding copy: fewer, larger reads.
+            if let Some(Piece::Copy(last)) = self.list.last_mut()
+                && last.end == range.start
+            {
+                last.end = range.end;
+                return;
+            }
+            self.list.push(Piece::Copy(range));
+        }
+    }
+
+    /// Appends another list.
+    pub(crate) fn extend(&mut self, other: Self) {
+        for piece in other.list {
+            match piece {
+                Piece::Copy(range) => self.copy(range),
+                Piece::Bytes(bytes) => self.bytes(bytes),
+            }
+        }
+    }
+
+    /// The total output length.
+    pub(crate) const fn len(&self) -> u64 {
+        self.len
+    }
+
+    /// Writes the pieces to `sink`, reading copied ranges from `input` in
+    /// blocks of at most 64 KiB.
+    pub(crate) fn emit(
+        &self,
+        input: &mut impl Input,
+        sink: &mut impl FnMut(&[u8]) -> Result<()>,
+    ) -> Result<()> {
+        let mut buf = alloc::vec![0u8; 64 * 1024];
+        for piece in &self.list {
+            match piece {
+                Piece::Bytes(bytes) => sink(bytes)?,
+                Piece::Copy(range) => {
+                    let mut at = range.start;
+                    while at < range.end {
+                        let n = usize::try_from(range.end.saturating_sub(at))
+                            .unwrap_or(usize::MAX)
+                            .min(buf.len());
+                        let chunk = buf.get_mut(..n).unwrap_or_default();
+                        if !input.read_at(at, chunk)? {
+                            return Err(Error::Malformed {
+                                offset: at,
+                                reason: "the file changed or ended while it was copied",
+                            });
+                        }
+                        sink(chunk)?;
+                        at = at.saturating_add(u64::try_from(n).unwrap_or(u64::MAX));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Assembles the pieces in memory.
+    pub(crate) fn to_vec(&self, input: &mut impl Input) -> Result<Vec<u8>> {
+        let mut out = Vec::with_capacity(usize::try_from(self.len).unwrap_or(0));
+        self.emit(input, &mut |bytes| {
+            out.extend_from_slice(bytes);
+            Ok(())
+        })?;
+        Ok(out)
+    }
+}
+
+/// Reads `range` into memory, failing if the input ends first.
+pub(crate) fn read_range(input: &mut impl Input, range: Range<u64>) -> Result<Vec<u8>> {
+    let len =
+        usize::try_from(range.end.saturating_sub(range.start)).map_err(|_| Error::TooLarge {
+            size: usize::MAX,
+            max: usize::MAX,
+        })?;
+    let mut buf = alloc::vec![0u8; len];
+    if !input.read_at(range.start, &mut buf)? {
+        return Err(Error::Malformed {
+            offset: range.start,
+            reason: "truncated chunk",
+        });
+    }
+    Ok(buf)
+}
