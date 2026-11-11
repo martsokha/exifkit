@@ -105,9 +105,10 @@ src/
     mod.rs            Format, detect(), locate(), Located, Encoding
     input.rs          Input: slices and Read + Seek streams, one code path
     pieces.rs         a rewritten file as copied ranges + new bytes (slice or stream)
-    jpeg.rs  png.rs  webp.rs   locate (read) and splice (write) per format
+    jpeg.rs  png.rs  webp.rs  jxl.rs   locate (read) and plan (write) per format
+    bmff.rs           ISOBMFF box headers, shared by JPEG XL and HEIF
   (planned)
-  container/heif, jxl  HEIF/AVIF and JPEG XL                            M3
+  container/heif       HEIF/AVIF                                         M3
 examples/dump.rs      prints every entry and diagnostic in a file
 xtask/                codegen, fixture download, ExifTool goldens
 data/tags.toml        source of truth for the tag table
@@ -157,7 +158,7 @@ tests/golden/         ExifTool's output for each sample (committed)
 | `webp`     | yes     | n/a                         | WebP container                                  |
 | `heif`     | yes     | n/a                         | HEIF/HEIC/AVIF (ISOBMFF)                         |
 | `jxl`      | yes     | n/a                         | JPEG XL plain `Exif` box                        |
-| `jxl-brob` | no      | `brotli-decompressor` (+ `brotli` to write) | JPEG XL `brob`-compressed Exif boxes |
+| `jxl-brob` | no      | `brotli-decompressor`, `std` | Read JPEG XL `brob`-compressed Exif and XMP boxes (written back as plain `Exif`) |
 | `serde`    | no      | `serde`                     | Serialize/Deserialize for the model             |
 | `jiff`     | no      | `jiff`                      | `DateTime` ↔ `jiff::Zoned`/`civil::DateTime`    |
 | `chrono`   | no      | `chrono`                    | `DateTime` ↔ `chrono` types                     |

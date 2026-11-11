@@ -7,8 +7,8 @@
 Read, edit and write Exif metadata in pure Rust.
 
 > **Status:** early development. Reading, editing and writing work for JPEG,
-> TIFF (including DNG, NEF, CR2, ORF, RW2 and other TIFF-based raw files), PNG
-> and WebP. HEIF/AVIF and JPEG XL are next. See
+> TIFF (including DNG, NEF, CR2, ORF, RW2 and other TIFF-based raw files), PNG,
+> WebP and JPEG XL. HEIF/AVIF is next. See
 > [`docs/`](https://github.com/martsokha/exifkit/tree/main/docs) for the
 > design and [`docs/roadmap.md`](https://github.com/martsokha/exifkit/blob/main/docs/roadmap.md)
 > for progress.
@@ -93,7 +93,7 @@ and a summary of the format live in
 | `jxl`        | yes     | JPEG XL `Exif` box                                   |
 | `inflate`    | no      | zlib, for PNG ICC profiles and compressed XMP        |
 | `png-legacy` | no      | Legacy PNG text-chunk "Raw profile type exif" (and `xmp`) |
-| `jxl-brob`   | no      | Brotli-compressed JPEG XL `brob` boxes               |
+| `jxl-brob`   | no      | Brotli-compressed JPEG XL `brob` boxes (needs `std`) |
 | `serde`      | no      | `Serialize`/`Deserialize` for the model              |
 | `jiff`       | no      | Conversions to and from `jiff` date-time types       |
 | `chrono`     | no      | Conversions to and from `chrono` date-time types     |

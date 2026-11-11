@@ -175,7 +175,7 @@ jobs:
       # Each container must build and lint on its own.
       - name: Clippy per feature
         run: |
-          for features in "" jpeg png png-legacy inflate webp tiff std; do
+          for features in "" jpeg png png-legacy inflate webp tiff jxl jxl-brob std; do
             echo "::group::--no-default-features --features '$features'"
             cargo clippy -p exifkit --no-default-features --features "$features" -- -D warnings
             echo "::endgroup::"

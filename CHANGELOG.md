@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- JPEG XL: reading and writing the `Exif` box, including Brotli-compressed
+  `brob` boxes (feature `jxl-brob`, which now needs `std`), XMP from the `xml `
+  box, and `remove_exif`. A bare codestream is wrapped in a container to carry
+  Exif. A file with JPEG reconstruction data (`jbrd`) keeps its Exif payload
+  size, so `djxl` can still rebuild the original JPEG.
+- `Encoding::Brotli` and `DiagnosticKind::InvalidExifOffset`.
+
 - Typed writing: `Exif::set` with the `IntoValue` trait. The tag table picks the
   field type and checks the value (type, count, enumeration values), returning
   the new `Error::InvalidValue`. UTF-8 text and Exif 3.0+ tags raise

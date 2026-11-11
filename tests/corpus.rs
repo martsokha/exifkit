@@ -1075,7 +1075,9 @@ fn xmp_and_icc_match_exiftool() {
             let theirs = exiftool_binary(&file, tag);
             match (ours, theirs) {
                 (Ok(Some(ours)), Some(theirs)) if *ours == *theirs => *count += 1,
-                (Ok(None), None) => {}
+                // JPEG XL keeps its ICC profile in the codestream, which
+                // neither tool decodes.
+                (Ok(None) | Err(exifkit::Error::Unsupported { .. }), None) => {}
                 (Ok(ours), theirs) => {
                     let _ = writeln!(
                         report,

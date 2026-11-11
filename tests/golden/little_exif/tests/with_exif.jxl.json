@@ -1,0 +1,69 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 268,
+      "name": "Exif_0x010c",
+      "value": "test2"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 269,
+      "name": "DocumentName",
+      "value": "test1"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 270,
+      "name": "ImageDescription",
+      "value": "-w 1000 -h 1000 --x_mid=0 --y_mid=0 -z 0.5 -i 1000 -c 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 1.4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 2706
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40962,
+      "name": "ExifImageWidth",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40963,
+      "name": "ExifImageHeight",
+      "value": 1
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

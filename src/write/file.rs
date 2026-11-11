@@ -143,21 +143,22 @@ fn own_block<'a>(data: &'a [u8], located: &container::Located) -> Option<&'a [u8
     Some(block.strip_prefix(b"Exif\0\0").unwrap_or(block))
 }
 
-/// Removes the Exif data from a JPEG, PNG or WebP file: the Exif APP1
-/// segments, the `eXIf` chunk (and legacy raw-profile text chunks), or the
-/// `EXIF` chunk (clearing the `VP8X` flag). Everything else is copied byte
+/// Removes the Exif data from a JPEG, PNG, WebP or JPEG XL file: the Exif
+/// APP1 segments, the `eXIf` chunk (and legacy raw-profile text chunks), the
+/// `EXIF` chunk (clearing the `VP8X` flag), or the `Exif` and Exif `brob`
+/// boxes. Everything else is copied byte
 /// for byte. A file without Exif is returned unchanged.
 ///
 /// # Errors
 ///
 /// [`Error::UnknownFormat`], [`Error::Unsupported`] for TIFF (its metadata is
-/// the file's structure), HEIF and JPEG XL, or [`Error::Malformed`] if the
+/// the file's structure) and HEIF, or [`Error::Malformed`] if the
 /// file is too broken to rewrite safely.
 pub fn remove_exif(original: &[u8]) -> Result<Vec<u8>> {
     let (located, _) = container::locate(original)?;
     match located.format {
-        Format::Heif | Format::Jxl => Err(Error::Unsupported {
-            what: "HEIF and JPEG XL are not writable yet",
+        Format::Heif => Err(Error::Unsupported {
+            what: "HEIF is not writable yet",
         }),
         format => container::splice(original, format, None),
     }
