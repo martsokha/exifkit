@@ -7,7 +7,8 @@
 Read, edit and write Exif metadata in pure Rust.
 
 > **Status:** early development. Reading works for JPEG, TIFF (including
-> DNG and other TIFF-based raw files), PNG and WebP; writing is in progress. See
+> DNG and other TIFF-based raw files), PNG and WebP. Editing and writing the
+> Exif block work; writing it back into image files is in progress. See
 > [`docs/`](https://github.com/martsokha/exifkit/tree/main/docs) for the
 > design and [`docs/roadmap.md`](https://github.com/martsokha/exifkit/blob/main/docs/roadmap.md)
 > for progress.

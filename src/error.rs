@@ -39,6 +39,13 @@ pub enum Error {
     },
     /// A configured resource limit was exceeded.
     LimitExceeded(Limit),
+    /// An entry cannot be stored where it was put.
+    InvalidEntry {
+        /// The entry's tag.
+        tag: crate::tag::Tag,
+        /// Why it was rejected.
+        reason: &'static str,
+    },
     /// The encoded Exif block does not fit in the target container.
     TooLarge {
         /// Size of the encoded block, in bytes.
@@ -61,6 +68,7 @@ impl fmt::Display for Error {
                 write!(f, "malformed data at offset {offset}: {reason}")
             }
             Self::LimitExceeded(limit) => write!(f, "limit exceeded: {limit}"),
+            Self::InvalidEntry { tag, reason } => write!(f, "invalid entry {tag}: {reason}"),
             Self::TooLarge { size, max } => {
                 write!(
                     f,

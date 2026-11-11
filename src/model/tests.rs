@@ -460,3 +460,113 @@ fn survives_every_single_byte_mutation_and_truncation() {
         data[i] = original[i];
     }
 }
+
+#[test]
+fn sub_ifds_are_numbered_canonically() {
+    // A SubIFDs list whose first two pointers are invalid: the reader used to
+    // hand out numbers 0 and 1 to them and call the real one SubIfd(2).
+    let mut t = Tiff::new();
+    let sub = t.ifd(&[(0x0100, SHORT, 1, 16)], 0);
+    let mut offsets = vec![0xFFu8, 0xFF, 0, 0, 0xFF, 0xFF, 0, 0];
+    offsets.extend_from_slice(&sub.to_le_bytes());
+    let list = t.blob(&offsets);
+    let ifd0 = t.ifd(&[(0x014A, LONG, 3, list)], 0);
+    let (exif, _) = read(&t.root(ifd0));
+    let subs: Vec<IfdKind> = exif
+        .ifds()
+        .iter()
+        .map(Ifd::kind)
+        .filter(|k| matches!(k, IfdKind::SubIfd(_)))
+        .collect();
+    assert_eq!(subs, [IfdKind::SubIfd(0)]);
+    let back = read(&exif.to_tiff().unwrap()).0;
+    assert_eq!(back, exif);
+}
+
+#[test]
+fn only_the_kept_maker_note_is_tracked() {
+    // An inline MakerNote, then a long duplicate that is not kept. The
+    // tracked offset must not come from the duplicate (found by fuzzing:
+    // it made the writer invent an OffsetSchema).
+    let mut t = Tiff::new();
+    let long = t.blob(&[1; 10]);
+    let exif_ifd = t.ifd(
+        &[
+            (0x927C, UNDEFINED, 4, inline(*b"abcd")),
+            (0x927C, UNDEFINED, 10, long),
+        ],
+        0,
+    );
+    let ifd0 = t.ifd(&[(0x8769, LONG, 1, exif_ifd)], 0);
+    let (exif, _) = read(&t.root(ifd0));
+    assert_eq!(exif.maker_note_offset(), None);
+    let once = exif.to_tiff().unwrap();
+    let back = read(&once).0;
+    assert_eq!(back.offset_schema(), None);
+    assert_eq!(back.to_tiff().unwrap(), once);
+}
+
+#[test]
+fn tracked_maker_note_follows_sub_ifd_renumbering() {
+    // A MakerNote in a SubIFD whose number changes when SubIFDs are
+    // renumbered (the first pointer is invalid). Found by fuzzing: the
+    // tracking pointed at the old number, so a moved MakerNote got no
+    // OffsetSchema on the first write but one on the second.
+    let mut t = Tiff::new();
+    let note = t.blob(&[7; 9]);
+    let sub = t.ifd(&[(0x927C, UNDEFINED, 9, note)], 0);
+    let mut offsets = vec![0xFFu8, 0xFF, 0, 0];
+    offsets.extend_from_slice(&sub.to_le_bytes());
+    let list = t.blob(&offsets);
+    let ifd0 = t.ifd(&[(0x014A, LONG, 2, list)], 0);
+    let (exif, _) = read(&t.root(ifd0));
+    let options = crate::WriteOptions::DEFAULT.maker_note(crate::MakerNotePolicy::Move);
+    let once = exif.to_tiff_with(&options).unwrap();
+    let back = read(&once).0;
+    assert!(back.offset_schema().is_some(), "the move is recorded");
+    assert_eq!(
+        back.to_tiff_with(&options).unwrap(),
+        once,
+        "and writing again is stable"
+    );
+}
+
+#[test]
+fn duplicate_sub_ifd_pointers_number_by_discovery() {
+    // Two SubIFDs tags in IFD0; the second one's children must not tie with
+    // the first one's (found by fuzzing: the writer merges both lists).
+    let mut t = Tiff::new();
+    let a = t.ifd(&[(0x0100, SHORT, 1, 1)], 0);
+    let b = t.ifd(&[(0x0100, SHORT, 1, 2)], 0);
+    let c = t.ifd(&[(0x0100, SHORT, 1, 3)], 0);
+    let ifd0 = t.ifd(
+        &[
+            (0x014A, LONG, 1, a),
+            (0x014A, LONG, 1, b),
+            (0x014A, LONG, 1, c),
+        ],
+        0,
+    );
+    let (exif, _) = read(&t.root(ifd0));
+    let widths: Vec<u16> = (0..3)
+        .filter_map(|n| exif.ifd(IfdKind::SubIfd(n))?.get(Tag::IMAGE_WIDTH))
+        .filter_map(|e| u16::from_value(e.value()).ok())
+        .collect();
+    assert_eq!(widths, [1, 2, 3]);
+    let back = read(&exif.to_tiff().unwrap()).0;
+    assert_eq!(back, exif);
+}
+
+#[test]
+fn malformed_offset_schema_is_dropped() {
+    // Several SLONGs instead of one (found by fuzzing: kept as an entry, it
+    // was silently lost on write, since the writer owns OffsetSchema).
+    let mut t = Tiff::new();
+    let values = t.blob(&[1, 0, 0, 0, 2, 0, 0, 0]);
+    let exif_ifd = t.ifd(&[(0xEA1D, 9, 2, values)], 0);
+    let ifd0 = t.ifd(&[(0x8769, LONG, 1, exif_ifd)], 0);
+    let (exif, diagnostics) = read(&t.root(ifd0));
+    assert!(diagnostics.contains(DiagnosticKind::CountMismatch { found: 2 }));
+    assert_eq!(exif.offset_schema(), None);
+    assert!(exif.ifd(IfdKind::Exif).unwrap().is_empty());
+}

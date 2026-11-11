@@ -24,7 +24,9 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use exifkit::tiff::ByteOrder;
-use exifkit::{EncodedText, Entry, Exif, IfdKind, Namespace, Rational, SRational, Tag, Value};
+use exifkit::{
+    EncodedText, Entry, Exif, FromValue, IfdKind, Namespace, Rational, SRational, Tag, Value,
+};
 use serde_json::Value as Json;
 
 fn root() -> PathBuf {
@@ -350,6 +352,14 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
         }
         stats.compared += 1;
         let theirs = &entry["value"];
+        if ns == Namespace::Main && id == 0xEA1D {
+            // OffsetSchema is layout, held apart from the entries.
+            let ours = exif.offset_schema().map(f64::from);
+            if ours.is_none_or(|o| !theirs.as_f64().is_some_and(|t| close(o, t))) {
+                problems.push(format!("OffsetSchema: exifkit {ours:?}, ExifTool {theirs}"));
+            }
+            continue;
+        }
         if ns == Namespace::Main && id == 0x0202 {
             // ThumbnailLength: exifkit extracts the thumbnail itself.
             let ours = exif.thumbnail().map(<[u8]>::len).map(|n| n as f64);
@@ -495,4 +505,352 @@ fn matches_exiftool_on_the_sample_corpus() {
     if compared > 0 {
         assert!(stats.compared > 10 * stats.skipped, "too many tags skipped");
     }
+}
+
+/// What the writer cannot keep: entries of unknown type and duplicates.
+fn writable(exif: &Exif) -> Exif {
+    let mut exif = exif.clone();
+    let kinds: Vec<IfdKind> = exif.ifds().iter().map(exifkit::Ifd::kind).collect();
+    for kind in kinds {
+        let ifd = exif.ifd_mut(kind);
+        ifd.retain(|e| !matches!(e.value(), Value::Unknown { .. }));
+        ifd.clear_duplicates();
+    }
+    exif
+}
+
+/// What survives writing with `source`: as [`writable`], minus data
+/// references (strips, tiles, thumbnail) that point outside the source.
+fn writable_with_source(exif: &Exif, source: &[u8]) -> Exif {
+    let pairs = [
+        (Tag::STRIP_OFFSETS, Tag::STRIP_BYTE_COUNTS),
+        (Tag::TILE_OFFSETS, Tag::TILE_BYTE_COUNTS),
+        (
+            Tag::JPEG_INTERCHANGE_FORMAT,
+            Tag::JPEG_INTERCHANGE_FORMAT_LENGTH,
+        ),
+    ];
+    let mut exif = writable(exif);
+    let kinds: Vec<IfdKind> = exif.ifds().iter().map(exifkit::Ifd::kind).collect();
+    for kind in kinds {
+        for (offsets_tag, lengths_tag) in pairs {
+            let ifd = exif.ifd_mut(kind);
+            let values = |tag| {
+                ifd.get(tag)
+                    .and_then(|e| Vec::<u32>::from_value(e.value()).ok())
+            };
+            let Some(offsets) = values(offsets_tag) else {
+                continue;
+            };
+            let lengths = values(lengths_tag);
+            let dangles = offsets.iter().enumerate().any(|(i, &o)| {
+                let l = lengths
+                    .as_ref()
+                    .and_then(|l| l.get(i))
+                    .copied()
+                    .unwrap_or(0);
+                u64::from(o) + u64::from(l) > source.len() as u64
+                    || u64::from(o) >= source.len() as u64
+            });
+            if dangles {
+                ifd.remove(offsets_tag);
+                ifd.remove(lengths_tag);
+            }
+        }
+    }
+    exif
+}
+
+/// Every sample survives read → write → read unchanged: with the source
+/// block (image data kept in place, the MakerNote at its original offset)
+/// and without it (where the model references no image data by offset).
+#[test]
+fn writer_round_trips_the_corpus() {
+    let root = root();
+    let mut paths = Vec::new();
+    goldens(&root.join("tests/golden"), &mut paths);
+    paths.sort();
+    let external = root.join("tests/fixtures/external");
+    let (mut preserved, mut compact, mut needs_source, mut anchored) = (0, 0, 0, 0);
+    let mut report = String::new();
+    for path in &paths {
+        let rel = path
+            .strip_prefix(root.join("tests/golden"))
+            .expect("golden under tests/golden")
+            .with_extension("");
+        let Ok(data) = std::fs::read(external.join(&rel)) else {
+            continue;
+        };
+        let Ok((exif, _)) = Exif::read(&data) else {
+            continue;
+        };
+        let expected = writable(&exif);
+        let name = rel.display();
+
+        // With the source TIFF block (not available for decoded PNG text).
+        let source = exifkit::container::locate(&data)
+            .ok()
+            .and_then(|(located, _)| {
+                let range = located
+                    .exif
+                    .filter(|_| located.encoding == exifkit::container::Encoding::Raw)?;
+                let start = usize::try_from(range.start).ok()?;
+                let end = usize::try_from(range.end).ok()?.min(data.len());
+                data.get(start..end)
+            });
+        if let Some(source) = source {
+            let options = exifkit::WriteOptions::DEFAULT.source(source);
+            match exif.to_tiff_with(&options) {
+                Ok(bytes) => match Exif::from_tiff(&bytes) {
+                    Ok((back, _)) => {
+                        preserved += 1;
+                        if back != writable_with_source(&exif, source) {
+                            let _ =
+                                writeln!(report, "{name}: preserving round trip changed the model");
+                        }
+                        if exif.maker_note_offset().is_some() {
+                            anchored += 1;
+                            if back.maker_note_offset() != exif.maker_note_offset() {
+                                let _ = writeln!(
+                                    report,
+                                    "{name}: MakerNote moved from {:?} to {:?}",
+                                    exif.maker_note_offset(),
+                                    back.maker_note_offset()
+                                );
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        let _ = writeln!(report, "{name}: preserving output unreadable: {err}");
+                    }
+                },
+                Err(err) => {
+                    let _ = writeln!(report, "{name}: preserving write failed: {err}");
+                }
+            }
+        }
+
+        // Without the source: compact, unless image data is referenced.
+        match exif.to_tiff() {
+            Ok(bytes) => match Exif::from_tiff(&bytes) {
+                Ok((back, _)) => {
+                    compact += 1;
+                    if back != expected {
+                        let _ = writeln!(report, "{name}: compact round trip changed the model");
+                    }
+                }
+                Err(err) => {
+                    let _ = writeln!(report, "{name}: compact output unreadable: {err}");
+                }
+            },
+            Err(exifkit::Error::Unsupported { .. }) => needs_source += 1,
+            Err(err) => {
+                let _ = writeln!(report, "{name}: compact write failed: {err}");
+            }
+        }
+    }
+    eprintln!(
+        "corpus: round-tripped {preserved} files with their source ({anchored} MakerNotes kept in \
+         place) and {compact} without; {needs_source} need their source for image data"
+    );
+    assert!(report.is_empty(), "writer round-trip failures:\n{report}");
+}
+
+/// Runs ExifTool and returns its EXIF and MakerNotes tags, keyed by
+/// `family0:family1:name` with copy numbers removed, as sorted `(id, value)`
+/// lists (one per copy).
+fn exiftool_tags(file: &Path) -> Option<std::collections::BTreeMap<String, Vec<(String, Json)>>> {
+    let output = std::process::Command::new("exiftool")
+        .args(["-j", "-D", "-n", "-a", "-u", "-G0:1:4"])
+        .arg(file)
+        .output()
+        .ok()?;
+    let parsed: Json = serde_json::from_slice(&output.stdout).ok()?;
+    let object = parsed.get(0)?.as_object()?;
+    let mut tags: std::collections::BTreeMap<String, Vec<(String, Json)>> =
+        std::collections::BTreeMap::new();
+    for (key, item) in object {
+        if !(key.starts_with("EXIF:") || key.starts_with("MakerNotes:")) {
+            continue;
+        }
+        let key: Vec<&str> = key
+            .split(':')
+            .filter(|part| !part.starts_with("Copy"))
+            .collect();
+        let id = item.get("id").map(ToString::to_string).unwrap_or_default();
+        let value = item.get("val").cloned().unwrap_or(Json::Null);
+        tags.entry(key.join(":")).or_default().push((id, value));
+    }
+    for list in tags.values_mut() {
+        list.sort_by_key(|(id, value)| (id.clone(), value.to_string()));
+    }
+    Some(tags)
+}
+
+/// Puts `tiff` in place of the original TIFF block. For JPEG the block keeps
+/// its position, so file-relative offsets inside MakerNotes stay valid.
+fn splice(data: &[u8], tiff: &[u8]) -> Option<Vec<u8>> {
+    let (located, _) = exifkit::container::locate(data).ok()?;
+    let range = located.exif?;
+    let start = usize::try_from(range.start).ok()?;
+    let end = usize::try_from(range.end).ok()?;
+    match located.format {
+        exifkit::Format::Tiff => Some(tiff.to_vec()),
+        exifkit::Format::Jpeg => {
+            if data.get(start.checked_sub(6)?..start)? != b"Exif\0\0"
+                || data.get(start.checked_sub(10)?..start - 8)? != [0xFF, 0xE1]
+            {
+                return None;
+            }
+            let len = u16::try_from(8 + tiff.len()).ok()?;
+            let mut out = data.get(..start - 8)?.to_vec();
+            out.extend_from_slice(&len.to_be_bytes());
+            out.extend_from_slice(b"Exif\0\0");
+            out.extend_from_slice(tiff);
+            out.extend_from_slice(data.get(end..)?);
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
+/// After an edit (a long new `ImageDescription`, which moves data around),
+/// ExifTool must read the file exactly like the original apart from that
+/// edit: every EXIF and MakerNotes tag, so vendor MakerNotes still decode.
+/// Needs `exiftool` on PATH and `cargo xtask fixtures`.
+///
+/// Not compared: `ThumbnailOffset` (the thumbnail moves; its bytes are
+/// compared as `ThumbnailImage`), tags the source duplicates (a TIFF IFD
+/// holds each tag once, so the writer keeps the first; a duplicated
+/// MakerNote takes its decoded tags with it), MakerNotes ExifTool itself
+/// reports as having incorrect offsets (they read garbage outside the
+/// MakerNote), and files where ExifTool stops reading an IFD early
+/// (exifkit reads past the bad entry).
+#[test]
+#[ignore = "needs exiftool and the downloaded samples"]
+fn exiftool_sees_only_the_edit_in_rewritten_files() {
+    let root = root();
+    let tmp = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("rewritten");
+    std::fs::create_dir_all(&tmp).unwrap();
+    let mut paths = Vec::new();
+    goldens(&root.join("tests/golden"), &mut paths);
+    paths.sort();
+    let external = root.join("tests/fixtures/external");
+    let (mut checked, mut tags) = (0, 0);
+    let mut report = String::new();
+    for (index, path) in paths.iter().enumerate() {
+        let rel = path
+            .strip_prefix(root.join("tests/golden"))
+            .unwrap()
+            .with_extension("");
+        let golden: Json = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let stopped_early = golden["warnings"].as_array().is_some_and(|w| {
+            w.iter()
+                .filter_map(Json::as_str)
+                .any(|w| w.starts_with("Error reading value"))
+        });
+        if stopped_early {
+            continue;
+        }
+        // ExifTool's own check: a MakerNote whose internal offsets already
+        // point outside it in the original reads garbage there, and that
+        // garbage changes whenever the surrounding data is rewritten.
+        let broken_maker_note = golden["warnings"].as_array().is_some_and(|w| {
+            w.iter()
+                .filter_map(Json::as_str)
+                .any(|w| w.contains("incorrect maker notes offsets"))
+        });
+        let original = external.join(&rel);
+        let Ok(data) = std::fs::read(&original) else {
+            continue;
+        };
+        let Ok((exif, _)) = Exif::read(&data) else {
+            continue;
+        };
+        let Some((located, _)) = exifkit::container::locate(&data).ok() else {
+            continue;
+        };
+        let Some(range) = located.exif else { continue };
+        let source = &data[range.start as usize..(range.end as usize).min(data.len())];
+        // An edit that forces relocation: a long new value in IFD0. It must
+        // be the only difference ExifTool sees.
+        let description = "exifkit ".repeat(40);
+        let mut edited = exif.clone();
+        let _ = edited.remove(Tag::IMAGE_DESCRIPTION);
+        if edited
+            .insert(exifkit::Entry::new(
+                Tag::IMAGE_DESCRIPTION,
+                Value::ascii(&description),
+            ))
+            .is_err()
+        {
+            continue;
+        }
+        let Ok(tiff) = edited.to_tiff_with(&exifkit::WriteOptions::DEFAULT.source(source)) else {
+            continue;
+        };
+        let Some(file) = splice(&data, &tiff) else {
+            continue;
+        };
+        // Keep the extension: ExifTool names some tags by file type.
+        let ext = original
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("bin");
+        let written = tmp.join(format!("{index}.{ext}"));
+        std::fs::write(&written, &file).unwrap();
+        let (Some(mut before), Some(mut after)) =
+            (exiftool_tags(&original), exiftool_tags(&written))
+        else {
+            continue;
+        };
+        let edit_key = "EXIF:IFD0:ImageDescription".to_owned();
+        match after.remove(&edit_key) {
+            Some(values)
+                if values.iter().any(|(_, v)| {
+                    v.as_str().map(str::trim_end) == Some(description.trim_end())
+                }) => {}
+            other => {
+                let _ = writeln!(
+                    report,
+                    "{}: the edit is not visible: {other:?}",
+                    rel.display()
+                );
+            }
+        }
+        before.remove(&edit_key);
+        let duplicated: std::collections::BTreeSet<String> = exif
+            .ifds()
+            .iter()
+            .flat_map(|ifd| ifd.duplicates().iter().map(|e| e.tag().id().to_string()))
+            .collect();
+        let maker_note_duplicated = duplicated.contains(&Tag::MAKER_NOTE.id().to_string());
+        checked += 1;
+        for (key, values) in &before {
+            if key.ends_with(":ThumbnailOffset")
+                || values.iter().any(|(id, _)| duplicated.contains(id))
+                || ((maker_note_duplicated || broken_maker_note) && key.starts_with("MakerNotes:"))
+            {
+                continue;
+            }
+            tags += values.len();
+            match after.get(key) {
+                Some(v) if v == values => {}
+                Some(v) => {
+                    let _ = writeln!(report, "{}: {key}: {values:?} -> {v:?}", rel.display());
+                }
+                None => {
+                    let _ = writeln!(report, "{}: {key} missing ({values:?})", rel.display());
+                }
+            }
+        }
+        for key in after.keys().filter(|k| !before.contains_key(*k)) {
+            let _ = writeln!(report, "{}: {key} added", rel.display());
+        }
+    }
+    eprintln!("exiftool: compared {tags} tags in {checked} rewritten files");
+    assert!(
+        report.is_empty(),
+        "ExifTool reads rewritten files differently:\n{report}"
+    );
 }

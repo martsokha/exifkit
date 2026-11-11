@@ -16,6 +16,7 @@ mod model;
 mod read;
 mod text;
 mod value;
+mod write;
 
 pub mod container;
 pub mod ifd;
@@ -36,3 +37,4 @@ pub use crate::model::{Entry, Exif, Ifd, ReadOptions};
 pub use crate::tag::{Namespace, Tag};
 pub use crate::text::{Copyright, EncodedText, TextEncoding};
 pub use crate::value::{FromValue, Rational, SRational, Value, ValueError};
+pub use crate::write::{MakerNotePolicy, WriteOptions};

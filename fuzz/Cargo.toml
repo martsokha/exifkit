@@ -16,6 +16,13 @@ exifkit = { path = "..", features = ["png-legacy"] }
 libfuzzer-sys = { version = "0.4" }
 
 [[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "read_any"
 path = "fuzz_targets/read_any.rs"
 test = false

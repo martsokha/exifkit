@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Writing: `Exif::to_tiff`, `Exif::to_tiff_with(&WriteOptions)` and
+  `Exif::encoded_len`. Without a source block the output is packed. With the
+  block the model was read from (`WriteOptions::source`), the layout is a
+  minimal diff:
+  - unchanged values keep their offsets;
+  - bytes the model does not account for (MakerNote data, image strips,
+    vendor data referenced by offset) stay in place;
+  - removed data is zeroed, not copied.
+  On 122 real files, ExifTool reads an edited file exactly like the original
+  apart from the edit, MakerNotes included.
+- `MakerNotePolicy` (`Anchor`, `RequireAnchored`, `Move`, `Drop`). The tracked
+  MakerNote keeps its original offset; when it moves, `OffsetSchema` records
+  how far. `Exif::offset_schema` exposes the source value.
+- Editing: `Exif::insert`, `remove`, `ifd_mut`, `remove_ifd`, `set_thumbnail`
+  and `set_byte_order`; `Ifd::insert`, `remove`, `retain` and
+  `clear_duplicates`. `Error::InvalidEntry` rejects tags in the wrong
+  namespace, and tags the writer computes (pointers, data offsets,
+  `OffsetSchema`).
+- `Ifd::parent`.
+- A `roundtrip` fuzz target, plus corpus tests: write/read round trips on
+  every sample, and an opt-in ExifTool comparison of edited files.
+
+### Changed
+
+- Equality on `Exif`, `Ifd` and `Entry` compares content, not source layout
+  (IFD offsets, the MakerNote offset, `OffsetSchema`, value offsets).
+- SubIFDs are numbered canonically: by parent, then by order among that
+  parent's SubIFDs. Numbers no longer depend on file layout or on failed
+  pointers, so they survive a write.
+- `OffsetSchema` is no longer an entry; it is `Exif::offset_schema`.
+- Exif, GPS and Interop IFDs always report their canonical parent.
+
 - Container reading: `Exif::read` and `Exif::read_with` for files in memory,
   `Exif::read_from` and `Exif::read_from_with` for `Read + Seek` streams
   (reading only the metadata). Supports JPEG, TIFF (including TIFF-based raw

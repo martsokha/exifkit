@@ -118,6 +118,12 @@ pub struct SRational { pub num: i32, pub den: i32 }
 // to_f64() -> Option<f64> (None if den == 0), approx(f64, max_den) constructor, Display "1/250"
 ```
 
+Implemented in M2 (PR 2): `Exif::to_tiff[_with]`, `Exif::encoded_len`,
+`WriteOptions`, `MakerNotePolicy`, and editing through `Exif::insert`,
+`remove`, `ifd_mut`, `remove_ifd`, `set_thumbnail`, `set_byte_order` and
+`Ifd::insert`, `remove`, `retain`, `clear_duplicates`. A typed `set` with
+validation (`IntoValue`) is still to come.
+
 Implemented in M2 (PR 1): `Exif::read[_with]`, `Exif::read_from[_with]`,
 `container::{detect, locate, Format, Located, Encoding}`.
 
