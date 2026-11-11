@@ -4,6 +4,8 @@
 
 use core::fmt;
 
+use crate::set::IntoValue;
+use crate::tag::Tag;
 use crate::value::{FromValue, Value, ValueError};
 
 /// Values of [`Tag::COMPRESSION`](crate::tag::Tag::COMPRESSION).
@@ -122,6 +124,13 @@ impl From<Compression> for u16 {
 impl FromValue for Compression {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Compression {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -253,6 +262,13 @@ impl FromValue for PhotometricInterpretation {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for PhotometricInterpretation {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for PhotometricInterpretation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -369,6 +385,13 @@ impl FromValue for Orientation {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Orientation {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -444,6 +467,13 @@ impl From<PlanarConfiguration> for u16 {
 impl FromValue for PlanarConfiguration {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for PlanarConfiguration {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -530,6 +560,13 @@ impl FromValue for ResolutionUnit {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for ResolutionUnit {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for ResolutionUnit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -604,6 +641,13 @@ impl From<YCbCrPositioning> for u16 {
 impl FromValue for YCbCrPositioning {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for YCbCrPositioning {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -729,6 +773,13 @@ impl FromValue for ExposureProgram {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for ExposureProgram {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for ExposureProgram {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -845,6 +896,13 @@ impl FromValue for SensitivityType {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for SensitivityType {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for SensitivityType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -958,6 +1016,13 @@ impl From<MeteringMode> for u16 {
 impl FromValue for MeteringMode {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for MeteringMode {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -1221,6 +1286,13 @@ impl FromValue for LightSource {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for LightSource {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for LightSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -1295,6 +1367,13 @@ impl From<ColorSpace> for u16 {
 impl FromValue for ColorSpace {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for ColorSpace {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -1408,6 +1487,13 @@ impl FromValue for SensingMethod {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for SensingMethod {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for SensingMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -1500,6 +1586,13 @@ impl FromValue for FileSource {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for FileSource {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for FileSource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -1569,6 +1662,13 @@ impl From<SceneType> for u16 {
 impl FromValue for SceneType {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for SceneType {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -1647,6 +1747,13 @@ impl From<CustomRendered> for u16 {
 impl FromValue for CustomRendered {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for CustomRendered {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -1736,6 +1843,13 @@ impl FromValue for ExposureMode {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for ExposureMode {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for ExposureMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -1811,6 +1925,13 @@ impl From<WhiteBalance> for u16 {
 impl FromValue for WhiteBalance {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for WhiteBalance {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -1903,6 +2024,13 @@ impl From<SceneCaptureType> for u16 {
 impl FromValue for SceneCaptureType {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for SceneCaptureType {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -2004,6 +2132,13 @@ impl FromValue for GainControl {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for GainControl {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for GainControl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -2083,6 +2218,13 @@ impl From<Contrast> for u16 {
 impl FromValue for Contrast {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Contrast {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -2169,6 +2311,13 @@ impl FromValue for Saturation {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Saturation {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for Saturation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -2248,6 +2397,13 @@ impl From<Sharpness> for u16 {
 impl FromValue for Sharpness {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Sharpness {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -2343,6 +2499,13 @@ impl FromValue for SubjectDistanceRange {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for SubjectDistanceRange {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for SubjectDistanceRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -2417,6 +2580,13 @@ impl From<Correction> for u16 {
 impl FromValue for Correction {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for Correction {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -2509,6 +2679,13 @@ impl From<NoiseReduction> for u16 {
 impl FromValue for NoiseReduction {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for NoiseReduction {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 
@@ -2614,6 +2791,13 @@ impl FromValue for AltitudeRef {
     }
 }
 
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for AltitudeRef {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
+    }
+}
+
 impl fmt::Display for AltitudeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.description() {
@@ -2703,6 +2887,13 @@ impl From<CompositeImage> for u16 {
 impl FromValue for CompositeImage {
     fn from_value(value: &Value) -> Result<Self, ValueError> {
         u16::from_value(value).map(Self::from_u16)
+    }
+}
+
+/// Converts to the tag's integer type; [`Exif::set`](crate::Exif::set) checks the value is defined.
+impl IntoValue for CompositeImage {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
+        self.to_u16().into_value(tag)
     }
 }
 

@@ -46,6 +46,14 @@ pub enum Error {
         /// Why it was rejected.
         reason: &'static str,
     },
+    /// A value does not fit its tag: a type, count or enumeration value
+    /// the tag table does not allow. See [`Exif::set`](crate::Exif::set).
+    InvalidValue {
+        /// The tag being set.
+        tag: crate::tag::Tag,
+        /// What is wrong with the value.
+        error: crate::value::ValueError,
+    },
     /// The encoded Exif block does not fit in the target container.
     TooLarge {
         /// Size of the encoded block, in bytes.
@@ -69,6 +77,7 @@ impl fmt::Display for Error {
             }
             Self::LimitExceeded(limit) => write!(f, "limit exceeded: {limit}"),
             Self::InvalidEntry { tag, reason } => write!(f, "invalid entry {tag}: {reason}"),
+            Self::InvalidValue { tag, error } => write!(f, "invalid value for {tag}: {error}"),
             Self::TooLarge { size, max } => {
                 write!(
                     f,
@@ -84,6 +93,7 @@ impl core::error::Error for Error {
         match self {
             #[cfg(feature = "std")]
             Self::Io(err) => Some(err),
+            Self::InvalidValue { error, .. } => Some(error),
             _ => None,
         }
     }

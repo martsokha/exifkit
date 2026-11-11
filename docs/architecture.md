@@ -81,6 +81,7 @@ src/
   diagnostic.rs       Diagnostic, DiagnosticKind, Diagnostics, Severity
   ifd.rs              IfdKind
   value.rs            Value, Rational, SRational, FromValue, ValueError
+  set.rs              IntoValue, Exif::set (checked against the tag table), date-time setters
   model.rs            Exif, Ifd, Entry, ReadOptions, the graph walker
   model/tests.rs      hand-built and hostile TIFF blocks
   datetime.rs         DateTime, Offset, SubSec, Exif::date_time*
@@ -99,10 +100,11 @@ src/
     mod.rs            WriteOptions, MakerNotePolicy, Exif::to_tiff / to_tiff_with / encoded_len
     plan.rs           layout planning (allocator, reserved and pinned ranges) and serialization
     value.rs          value encoding (the inverse of Value::decode)
-    file.rs           Exif::write_into / write_into_with, remove_exif
+    file.rs           Exif::write_into / write_into_with / write_stream, remove_exif
   container/
     mod.rs            Format, detect(), locate(), Located, Encoding
     input.rs          Input: slices and Read + Seek streams, one code path
+    pieces.rs         a rewritten file as copied ranges + new bytes (slice or stream)
     jpeg.rs  png.rs  webp.rs   locate (read) and splice (write) per format
   (planned)
   container/heif, jxl  HEIF/AVIF and JPEG XL                            M3
@@ -150,7 +152,8 @@ tests/golden/         ExifTool's output for each sample (committed)
 | `jpeg`     | yes     | n/a                         | JPEG container                                  |
 | `tiff`     | yes     | n/a                         | TIFF container (and raw files, read only)       |
 | `png`      | yes     | n/a (CRC32 inline)          | PNG `eXIf` read/write                           |
-| `png-legacy` | no    | `miniz_oxide`               | Read legacy `zTXt`/`iTXt` "Raw profile type exif" |
+| `inflate`    | no    | `miniz_oxide`               | zlib: PNG `iCCP` profiles and compressed XMP |
+| `png-legacy` | no    | `inflate`                   | Read legacy `zTXt`/`iTXt` "Raw profile type exif" (and `xmp`) |
 | `webp`     | yes     | n/a                         | WebP container                                  |
 | `heif`     | yes     | n/a                         | HEIF/HEIC/AVIF (ISOBMFF)                         |
 | `jxl`      | yes     | n/a                         | JPEG XL plain `Exif` box                        |

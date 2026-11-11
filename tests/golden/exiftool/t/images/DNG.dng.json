@@ -1,0 +1,818 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 259,
+      "name": "Compression",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "Canon"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "Canon EOS 350D DIGITAL"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 13470
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 192
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2005:08:03 18:59:18"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 315,
+      "name": "Artist",
+      "value": "unknown"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 37393,
+      "name": "ImageNumber",
+      "value": 24
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50706,
+      "name": "DNGVersion",
+      "value": "1 1 0 0"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50707,
+      "name": "DNGBackwardVersion",
+      "value": "1 1 0 0"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50708,
+      "name": "UniqueCameraModel",
+      "value": "Canon EOS 350D"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50709,
+      "name": "LocalizedCameraModel",
+      "value": "Canon EOS 350D Digital"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50721,
+      "name": "ColorMatrix1",
+      "value": "0.6159 -0.0945 -0.0745 -0.6846 1.3563 0.3684 -0.0802 0.1086 0.7555"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50722,
+      "name": "ColorMatrix2",
+      "value": "0.6018 -0.0617 -0.0965 -0.8645 1.5881 0.2975 -0.153 0.1719 0.7642"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50723,
+      "name": "CameraCalibration1",
+      "value": "1.0069 0 0 0 1 0 0 0 1.0027"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50724,
+      "name": "CameraCalibration2",
+      "value": "1.0069 0 0 0 1 0 0 0 1.0027"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50727,
+      "name": "AnalogBalance",
+      "value": "1 1 1"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50728,
+      "name": "AsShotNeutral",
+      "value": "0.592408 1 0.501692"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50730,
+      "name": "BaselineExposure",
+      "value": 0.25
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50731,
+      "name": "BaselineNoise",
+      "value": 1.33
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50732,
+      "name": "BaselineSharpness",
+      "value": 1.5
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50734,
+      "name": "LinearResponseLimit",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50735,
+      "name": "CameraSerialNumber",
+      "value": "012345678"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50736,
+      "name": "DNGLensInfo",
+      "value": "18 55 undef undef"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50739,
+      "name": "ShadowScale",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50778,
+      "name": "CalibrationIlluminant1",
+      "value": 17
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50779,
+      "name": "CalibrationIlluminant2",
+      "value": 21
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50781,
+      "name": "RawDataUniqueID",
+      "value": "0358DB4E08632D90925171A6BB8848A2"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 50827,
+      "name": "OriginalRawFileName",
+      "value": "Canon350D.CR2"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.06666666667
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 400
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36864,
+      "name": "ExifVersion",
+      "value": "0221"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2005:08:03 18:59:18"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2005:08:03 18:59:18"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37377,
+      "name": "ShutterSpeedValue",
+      "value": 0.0666666479798149
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37378,
+      "name": "ApertureValue",
+      "value": 8
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 4
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 16
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 55
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41486,
+      "name": "FocalPlaneXResolution",
+      "value": 3954.23341
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41487,
+      "name": "FocalPlaneYResolution",
+      "value": 3958.762887
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41488,
+      "name": "FocalPlaneResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41985,
+      "name": "CustomRendered",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41986,
+      "name": "ExposureMode",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41987,
+      "name": "WhiteBalance",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41990,
+      "name": "SceneCaptureType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 3516
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 2328
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": 16
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 259,
+      "name": "Compression",
+      "value": 7
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 32803
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 322,
+      "name": "TileWidth",
+      "value": 256
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 323,
+      "name": "TileLength",
+      "value": 240
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 324,
+      "name": "TileOffsets",
+      "value": 12494
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 325,
+      "name": "TileByteCounts",
+      "value": 22
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 33421,
+      "name": "CFARepeatPatternDim",
+      "value": "2 2"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 33422,
+      "name": "CFAPattern2",
+      "value": "0 1 1 2"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50710,
+      "name": "CFAPlaneColor",
+      "value": "0 1 2"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50711,
+      "name": "CFALayout",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50713,
+      "name": "BlackLevelRepeatDim",
+      "value": "1 1"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50714,
+      "name": "BlackLevel",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50717,
+      "name": "WhiteLevel",
+      "value": 4095
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50718,
+      "name": "DefaultScale",
+      "value": "1 1"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50719,
+      "name": "DefaultCropOrigin",
+      "value": "10 5"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50720,
+      "name": "DefaultCropSize",
+      "value": "3456 2304"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50733,
+      "name": "BayerGreenSplit",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50738,
+      "name": "AntiAliasStrength",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50780,
+      "name": "BestQualityScale",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50829,
+      "name": "ActiveArea",
+      "value": "14 42 2328 3516"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 50830,
+      "name": "MaskedAreas",
+      "value": "14 0 2328 40"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 1024
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 683
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 7
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 273,
+      "name": "PreviewImageStart",
+      "value": 12780
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 683
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 279,
+      "name": "PreviewImageLength",
+      "value": 26
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 529,
+      "name": "YCbCrCoefficients",
+      "value": "0.299 0.587 0.114"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 530,
+      "name": "YCbCrSubSampling",
+      "value": "2 2"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 532,
+      "name": "ReferenceBlackWhite",
+      "value": "0 255 128 255 128 255"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 3456
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 2304
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 259,
+      "name": "Compression",
+      "value": 7
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 273,
+      "name": "JpgFromRawStart",
+      "value": 13070
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 2304
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 279,
+      "name": "JpgFromRawLength",
+      "value": 29
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 529,
+      "name": "YCbCrCoefficients",
+      "value": "0.299 0.587 0.114"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 530,
+      "name": "YCbCrSubSampling",
+      "value": "1 1"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 531,
+      "name": "YCbCrPositioning",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD2",
+      "id": 532,
+      "name": "ReferenceBlackWhite",
+      "value": "0 255 128 255 128 255"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

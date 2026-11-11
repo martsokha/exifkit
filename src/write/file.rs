@@ -44,11 +44,90 @@ impl Exif {
         }
         let tiff = self.to_tiff_with(&options)?;
         match located.format {
-            // A TIFF file is its TIFF block; image data stayed in place.
-            Format::Tiff => Ok(tiff),
+            // A TIFF file is its TIFF block; image data stayed in place. A raw
+            // format (ORF, RW2) keeps its own magic number.
+            Format::Tiff => Ok(keep_magic(original, tiff)),
             format => container::splice(original, format, Some(&tiff)),
         }
     }
+
+    /// Writes the metadata into the file read from `src`, writing the new
+    /// file to `dst`. The result is the same as [`Exif::write_into_with`],
+    /// but JPEG, PNG and WebP files are streamed: only their headers, small
+    /// metadata chunks and the Exif block are read into memory, and the
+    /// image data is copied through in 64 KiB blocks. A TIFF file is its
+    /// own Exif block, so it is read whole.
+    ///
+    /// `dst` must not be the file `src` reads from. Write to a temporary
+    /// file and rename it over the original, so a failure leaves the
+    /// original intact:
+    ///
+    /// ```no_run
+    /// # fn main() -> exifkit::Result<()> {
+    /// use std::fs::File;
+    /// use std::io::BufWriter;
+    ///
+    /// let (exif, _) = exifkit::Exif::read_from(File::open("photo.jpg")?)?;
+    /// let tmp = "photo.jpg.tmp";
+    /// let mut dst = BufWriter::new(File::create(tmp)?);
+    /// exif.write_stream(File::open("photo.jpg")?, &mut dst, &exifkit::WriteOptions::DEFAULT)?;
+    /// dst.into_inner().map_err(|e| e.into_error())?.sync_all()?;
+    /// std::fs::rename(tmp, "photo.jpg")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// As [`Exif::write_into`], plus [`Error::Io`] from either stream. On
+    /// an error, `dst` may hold a partial file.
+    #[cfg(feature = "std")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    pub fn write_stream<R, W>(&self, src: R, mut dst: W, options: &WriteOptions<'_>) -> Result<()>
+    where
+        R: std::io::Read + std::io::Seek,
+        W: std::io::Write,
+    {
+        let mut input = container::Stream(src);
+        let mut diagnostics = crate::diagnostic::Diagnostics::default();
+        let located = container::locate_in(&mut input, &mut diagnostics)?;
+        // The file's own block, read from the stream, is the source.
+        let own = match (&located.exif, located.encoding) {
+            (Some(range), Encoding::Raw) if options.source.is_none() => {
+                Some(container::read_range(&mut input, range.clone())?)
+            }
+            _ => None,
+        };
+        let mut options = *options;
+        if let Some(own) = &own {
+            options.source = Some(own.strip_prefix(b"Exif\0\0").unwrap_or(own));
+        }
+        let tiff = self.to_tiff_with(&options)?;
+        if located.format == Format::Tiff {
+            let mut magic = [0u8; 4];
+            let tiff = if container::Input::read_at(&mut input, 0, &mut magic)? {
+                keep_magic(&magic, tiff)
+            } else {
+                tiff
+            };
+            dst.write_all(&tiff)?;
+            return Ok(());
+        }
+        let pieces = container::plan(&mut input, located.format, Some(&tiff))?;
+        pieces.emit(&mut input, &mut |bytes| Ok(dst.write_all(bytes)?))?;
+        Ok(())
+    }
+}
+
+/// Puts the original file's magic number into a rewritten TIFF file, when
+/// both have the same byte order (the writer always writes 42).
+fn keep_magic(original: &[u8], mut tiff: Vec<u8>) -> Vec<u8> {
+    if let (Some(from), Some(to)) = (original.get(..4), tiff.get_mut(..4))
+        && from.get(..2) == to.get(..2)
+    {
+        to.copy_from_slice(from);
+    }
+    tiff
 }
 
 /// The file's own TIFF block, as the reader saw it, when it is stored raw.

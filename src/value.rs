@@ -371,8 +371,14 @@ pub enum ValueError {
         /// The number of stored values.
         found: usize,
     },
-    /// The value does not fit in the requested type.
+    /// The value does not fit in the requested type, or is not one the
+    /// tag defines.
     OutOfRange,
+    /// The tag does not allow this number of values.
+    CountNotAllowed {
+        /// The number of values given.
+        found: usize,
+    },
     /// The text is not valid UTF-8.
     InvalidText,
     /// The value does not follow the format the tag defines (for example a
@@ -386,6 +392,7 @@ impl fmt::Display for ValueError {
             Self::WrongType { found: Some(ty) } => write!(f, "unexpected type {ty}"),
             Self::WrongType { found: None } => f.write_str("unknown type"),
             Self::WrongCount { found } => write!(f, "expected 1 value, found {found}"),
+            Self::CountNotAllowed { found } => write!(f, "the tag does not allow {found} values"),
             Self::OutOfRange => f.write_str("value out of range"),
             Self::InvalidText => f.write_str("text is not valid UTF-8"),
             Self::Invalid => f.write_str("value does not follow the tag's format"),

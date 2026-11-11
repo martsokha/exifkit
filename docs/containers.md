@@ -48,6 +48,27 @@ What we do differently from this design:
 - **WebP:** a simple file is converted to VP8X with the canvas size from
   the bitstream. If the bitstream gives no canvas size, the result is
   `Error::Unsupported`. `remove_exif` clears the flag but keeps VP8X.
+- **Streaming:** each format's writer builds a list of pieces (ranges
+  copied from the original, plus new bytes) by walking the structure
+  through the same `Input` trait the reader uses. `write_into` and
+  `remove_exif` run it over a slice, `write_stream` over a `Read + Seek`,
+  so both give identical output (checked on the corpus and by the
+  `write_into` fuzz target). Only marker and chunk headers, Exif headers,
+  the MPF segment, text-chunk keywords, the `VP8X` flags and the first
+  bytes of a WebP bitstream are read.
+- **Raw formats:** Olympus ORF (`IIRO`, `MMOR`, `IIRS`) and Panasonic RW2
+  (`IIU\0`) are TIFF structures under their own magic number. They are
+  detected as `Format::Tiff`, and `write_into` keeps the file's magic.
+  RW2 also embeds a full JPEG preview (`JpgFromRaw`) with its own Exif;
+  exifkit reads the file's own IFDs, not the preview's.
+- **XMP and ICC:** `container::xmp` and `container::icc_profile` return
+  them as stored. JPEG: the APP1 XMP packet (Extended XMP is not merged)
+  and the APP2 `ICC_PROFILE` segments joined in order (a missing or
+  repeated segment is `Error::Malformed`). TIFF: IFD0 tags 0x02BC and
+  0x8773. PNG: `iTXt` `XML:com.adobe.xmp`, then (with `png-legacy`)
+  ImageMagick's `Raw profile type xmp`, and `iCCP` (needs `inflate`).
+  WebP: the `XMP ` and `ICCP` chunks. On the corpus, 54 XMP packets and 38
+  ICC profiles match `exiftool -b` byte for byte.
 - **Verified on the corpus:** writing back changes no byte outside the
   Exif data (`remove_exif` of the original equals `remove_exif` of the
   rewrite, on 115 files). `exiftool -validate` reports no new warnings

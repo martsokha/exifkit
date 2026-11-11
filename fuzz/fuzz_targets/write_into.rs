@@ -1,4 +1,5 @@
 //! Writing Exif back into any readable file must succeed or fail cleanly,
+//! give the same bytes in memory and streamed,
 //! keep every writable entry, and leave every byte outside the Exif data
 //! unchanged: stripping Exif from the rewrite equals stripping it from the
 //! original.
@@ -16,6 +17,10 @@ fuzz_target!(|data: &[u8]| {
     let Ok(out) = exif.write_into(data) else {
         return;
     };
+    let mut streamed = Vec::new();
+    exif.write_stream(std::io::Cursor::new(data), &mut streamed, &exifkit::WriteOptions::DEFAULT)
+        .expect("write_stream must succeed where write_into does");
+    assert!(streamed == out, "write_stream and write_into disagree");
     let (back, _) = Exif::read(&out).expect("a written file must read back");
     for ifd in exif.ifds() {
         for entry in ifd.entries() {

@@ -1,0 +1,475 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 160
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 106
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": "8 8 8"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 259,
+      "name": "Compression",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 271,
+      "name": "Make",
+      "value": "NIKON CORPORATION"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 272,
+      "name": "Model",
+      "value": "NIKON D70"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 6170
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 106
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 18
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 305,
+      "name": "Software",
+      "value": "Nikon Capture Editor 4.3.1 W"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 306,
+      "name": "ModifyDate",
+      "value": "2005:08:25 13:09:05"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2004:06:09 16:02:35"
+    },
+    {
+      "copy": 0,
+      "group": "IFD0",
+      "id": 37398,
+      "name": "TIFF-EPStandardID",
+      "value": "1 0 0 0"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33434,
+      "name": "ExposureTime",
+      "value": 0.05
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 33437,
+      "name": "FNumber",
+      "value": 3.5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34850,
+      "name": "ExposureProgram",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34855,
+      "name": "ISO",
+      "value": 200
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2004:06:09 16:02:35"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36868,
+      "name": "CreateDate",
+      "value": "2004:06:09 16:02:35"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37380,
+      "name": "ExposureCompensation",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37381,
+      "name": "MaxApertureValue",
+      "value": 3.4822022531845
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37383,
+      "name": "MeteringMode",
+      "value": 5
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37384,
+      "name": "LightSource",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37385,
+      "name": "Flash",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 18
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37510,
+      "name": "UserComment",
+      "value": ""
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37520,
+      "name": "SubSecTime",
+      "value": "00"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37521,
+      "name": "SubSecTimeOriginal",
+      "value": "00"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37522,
+      "name": "SubSecTimeDigitized",
+      "value": "00"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 40961,
+      "name": "ColorSpace",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41495,
+      "name": "SensingMethod",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41728,
+      "name": "FileSource",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41729,
+      "name": "SceneType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41730,
+      "name": "CFAPattern",
+      "value": "2 2 2 1 1 0"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 259,
+      "name": "Compression",
+      "value": 6
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 282,
+      "name": "XResolution",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 283,
+      "name": "YResolution",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 513,
+      "name": "JpgFromRawStart",
+      "value": 1120
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD",
+      "id": 514,
+      "name": "JpgFromRawLength",
+      "value": 29
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 254,
+      "name": "SubfileType",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 256,
+      "name": "ImageWidth",
+      "value": 3040
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 257,
+      "name": "ImageHeight",
+      "value": 2014
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 258,
+      "name": "BitsPerSample",
+      "value": 12
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 259,
+      "name": "Compression",
+      "value": 34713
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 262,
+      "name": "PhotometricInterpretation",
+      "value": 32803
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 273,
+      "name": "StripOffsets",
+      "value": 1376
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 274,
+      "name": "Orientation",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 277,
+      "name": "SamplesPerPixel",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 278,
+      "name": "RowsPerStrip",
+      "value": 2014
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 279,
+      "name": "StripByteCounts",
+      "value": 18
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 282,
+      "name": "XResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 283,
+      "name": "YResolution",
+      "value": 300
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 284,
+      "name": "PlanarConfiguration",
+      "value": 1
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 296,
+      "name": "ResolutionUnit",
+      "value": 2
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 33421,
+      "name": "CFARepeatPatternDim",
+      "value": "2 2"
+    },
+    {
+      "copy": 0,
+      "group": "SubIFD1",
+      "id": 33422,
+      "name": "CFAPattern2",
+      "value": "2 1 1 0"
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

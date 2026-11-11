@@ -69,6 +69,19 @@ impl EncodedText {
         })
     }
 
+    /// Assembles a value from its parts.
+    pub(crate) const fn from_parts(
+        encoding: TextEncoding,
+        data: Vec<u8>,
+        order: ByteOrder,
+    ) -> Self {
+        Self {
+            encoding,
+            data,
+            order,
+        }
+    }
+
     /// Returns the character code.
     #[must_use]
     pub const fn encoding(&self) -> TextEncoding {

@@ -17,6 +17,11 @@ url = "https://raw.githubusercontent.com/ianare/exif-py/8f6efb2c6e2ed3481ba5d0c5
 notes = "BSD-3-Clause repository. Images: Wikimedia Commons (per-file licenses, see tests/resources/jpg/README.txt), exif.org samples, spatialite GPS samples, contributions under CC BY-SA 4.0."
 
 [[source]]
+name = "exiftool"
+url = "https://raw.githubusercontent.com/exiftool/exiftool/1da714924f67763b6a8a7013dd2aa1983a16f87b/"
+notes = "GPL-3.0 repository (ExifTool's own test images). Small stripped raw and TIFF samples: Panasonic RW2, Canon CR2, Nikon NEF, DNG."
+
+[[source]]
 name = "little_exif"
 url = "https://raw.githubusercontent.com/TechnikTobi/little_exif/2c86b66d2feeb1498180ec33cca5aab60239dfbd/"
 notes = "MIT OR Apache-2.0 repository. Images attached to issues by their reporters."
@@ -926,3 +931,33 @@ source = "little_exif"
 path = "tests/sample2_simple_lossy.webp"
 sha256 = "47bd378a8eaaad0a6e59ca652a740395ce00d007a07114cfb641b45eeaec6eae"
 size = 12428
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/CanonRaw.cr2"
+sha256 = "b5d3d26f3c85bcb35a52515eac060e2e362161893504013589ffd9ad2e9b004b"
+size = 8724
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/DNG.dng"
+sha256 = "daa9ce7a2c6923815390d8566254ef4d4a75d68d1531afdb264bd4b39a8dfd89"
+size = 13662
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/ExifTool.tif"
+sha256 = "ba7bd9a71eb2bb5a93ceaf851d4616d5df24f4cff752183045b679dd7ce65bce"
+size = 4864
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/Nikon.nef"
+sha256 = "6fae30a2809b52ece100316f33a3fade4b65cf5690af2d62bb00f44ae052bdd6"
+size = 6188
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/Panasonic.rw2"
+sha256 = "431a1239713ce1bca8f0b422b9a094372246669432060e2a0a21d1fd2f761678"
+size = 12344

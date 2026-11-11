@@ -3,6 +3,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
+use super::pieces::Pieces;
 use super::{Input, truncated};
 use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics};
 use crate::error::{Error, Result};
@@ -74,23 +75,20 @@ const FLAG_ALPHA: u8 = 0x10;
 /// padding byte.
 struct Span {
     fourcc: [u8; 4],
-    start: usize,
-    data: Range<usize>,
-    end: usize,
+    start: u64,
+    data: Range<u64>,
+    end: u64,
 }
 
-fn malformed(offset: usize, reason: &'static str) -> Error {
-    Error::Malformed {
-        offset: u64::try_from(offset).unwrap_or(u64::MAX),
-        reason,
-    }
+const fn malformed(offset: u64, reason: &'static str) -> Error {
+    Error::Malformed { offset, reason }
 }
 
-/// Splits a WebP into its chunks. Returns them and where the bytes after
-/// the RIFF payload (copied verbatim) start.
-fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
+/// Splits a WebP into its chunks, reading only chunk headers. Returns them
+/// and where the bytes after the RIFF payload (copied verbatim) start.
+fn spans(input: &mut impl Input, len: u64) -> Result<(Vec<Span>, u64)> {
     let Some(
-        &[
+        [
             b'R',
             b'I',
             b'F',
@@ -104,26 +102,24 @@ fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
             b'B',
             b'P',
         ],
-    ) = data.get(..12)
+    ) = input.array::<12>(0)?
     else {
         return Err(malformed(0, "not a WebP"));
     };
-    let riff_end = usize::try_from(u32::from_le_bytes([s0, s1, s2, s3]))
-        .unwrap_or(usize::MAX)
-        .saturating_add(8);
-    if riff_end > data.len() {
+    let riff_end = u64::from(u32::from_le_bytes([s0, s1, s2, s3])).saturating_add(8);
+    if riff_end > len {
         return Err(malformed(4, "truncated WebP"));
     }
     let mut spans = Vec::new();
-    let mut at = 12usize;
+    let mut at = 12u64;
     while at < riff_end {
-        let Some(&[f0, f1, f2, f3, l0, l1, l2, l3]) = data.get(at..at.saturating_add(8)) else {
+        let Some([f0, f1, f2, f3, l0, l1, l2, l3]) = input.array::<8>(at)? else {
             return Err(malformed(at, "truncated WebP chunk"));
         };
-        let len = usize::try_from(u32::from_le_bytes([l0, l1, l2, l3])).unwrap_or(usize::MAX);
+        let length = u64::from(u32::from_le_bytes([l0, l1, l2, l3]));
         let data_start = at.saturating_add(8);
-        let data_end = data_start.saturating_add(len);
-        let end = data_end.saturating_add(len & 1).min(riff_end);
+        let data_end = data_start.saturating_add(length);
+        let end = data_end.saturating_add(length & 1).min(riff_end);
         if data_end > riff_end {
             return Err(malformed(at, "truncated WebP chunk"));
         }
@@ -138,36 +134,35 @@ fn spans(data: &[u8]) -> Result<(Vec<Span>, usize)> {
     Ok((spans, riff_end))
 }
 
-/// Canvas size and alpha of a simple-format image, from its bitstream.
-fn canvas(data: &[u8], span: &Span) -> Option<(u32, u32, bool)> {
-    let bits = data.get(span.data.clone())?;
-    match &span.fourcc {
+/// Canvas size and alpha of a simple-format image, from the first bytes of
+/// its bitstream.
+fn canvas(input: &mut impl Input, span: &Span) -> Result<Option<(u32, u32, bool)>> {
+    Ok(match &span.fourcc {
         // Lossy: 3-byte frame tag (bit 0 clear on a key frame), start code
         // 9D 01 2A, then 14-bit width and height.
-        b"VP8 " => {
-            let &[tag, _, _, 0x9D, 0x01, 0x2A, w0, w1, h0, h1, ..] = bits else {
-                return None;
-            };
-            if tag & 1 != 0 {
-                return None;
+        b"VP8 " => match input.array::<10>(span.data.start)? {
+            Some([tag, _, _, 0x9D, 0x01, 0x2A, w0, w1, h0, h1])
+                if tag & 1 == 0 && span.data.end.saturating_sub(span.data.start) >= 10 =>
+            {
+                let width = u32::from(u16::from_le_bytes([w0, w1]) & 0x3FFF);
+                let height = u32::from(u16::from_le_bytes([h0, h1]) & 0x3FFF);
+                Some((width, height, false))
             }
-            let width = u32::from(u16::from_le_bytes([w0, w1]) & 0x3FFF);
-            let height = u32::from(u16::from_le_bytes([h0, h1]) & 0x3FFF);
-            Some((width, height, false))
-        }
+            _ => None,
+        },
         // Lossless: signature 0x2F, then width-1 and height-1 (14 bits each)
         // and the alpha hint.
-        b"VP8L" => {
-            let &[0x2F, b0, b1, b2, b3, ..] = bits else {
-                return None;
-            };
-            let packed = u32::from_le_bytes([b0, b1, b2, b3]);
-            let width = (packed & 0x3FFF).saturating_add(1);
-            let height = ((packed >> 14) & 0x3FFF).saturating_add(1);
-            Some((width, height, packed >> 28 & 1 == 1))
-        }
+        b"VP8L" => match input.array::<5>(span.data.start)? {
+            Some([0x2F, b0, b1, b2, b3]) if span.data.end.saturating_sub(span.data.start) >= 5 => {
+                let packed = u32::from_le_bytes([b0, b1, b2, b3]);
+                let width = (packed & 0x3FFF).saturating_add(1);
+                let height = ((packed >> 14) & 0x3FFF).saturating_add(1);
+                Some((width, height, packed >> 28 & 1 == 1))
+            }
+            _ => None,
+        },
         _ => None,
-    }
+    })
 }
 
 fn chunk(fourcc: &[u8; 4], payload: &[u8]) -> Result<Vec<u8>> {
@@ -185,23 +180,35 @@ fn chunk(fourcc: &[u8; 4], payload: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Appends a chunk at an even offset. Only the file's last chunk can lack
-/// its padding byte (some writers drop it), so pad before writing after it.
-fn push_chunk(body: &mut Vec<u8>, chunk: &[u8]) {
-    if body.len() % 2 == 1 {
-        body.push(0);
-    }
-    body.extend_from_slice(chunk);
+/// The data of the first chunk with this FourCC (`XMP `, `ICCP`).
+pub(super) fn chunk_data<'a>(data: &'a [u8], fourcc: &[u8; 4]) -> Result<Option<&'a [u8]>> {
+    let len = u64::try_from(data.len()).unwrap_or(u64::MAX);
+    let (spans, _) = spans(&mut super::Slice(data), len)?;
+    let index = |o: u64| usize::try_from(o).unwrap_or(usize::MAX);
+    Ok(spans
+        .iter()
+        .find(|s| &s.fourcc == fourcc)
+        .and_then(|s| data.get(index(s.data.start)..index(s.data.end))))
 }
 
-/// Replaces the `EXIF` chunk with one holding `tiff`, or removes it when
-/// `tiff` is `None`, keeping the `VP8X` EXIF flag in step. A simple-format
-/// file (a bare `VP8 ` or `VP8L` chunk) gains a `VP8X` header with the
-/// canvas size read from the bitstream, since only the extended format can
-/// carry Exif. A new `EXIF` chunk goes before `XMP `, or last. Everything
-/// else is copied verbatim.
-pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
-    let (spans, rest) = spans(data)?;
+/// Appends a chunk at an even offset. Only the file's last chunk can lack
+/// its padding byte (some writers drop it), so pad before writing after it.
+fn push_chunk(body: &mut Pieces, chunk: &[u8]) {
+    if body.len() % 2 == 1 {
+        body.bytes([0]);
+    }
+    body.bytes(chunk);
+}
+
+/// Plans replacing the `EXIF` chunk with one holding `tiff`, or removing it
+/// when `tiff` is `None`, keeping the `VP8X` EXIF flag in step. A
+/// simple-format file (a bare `VP8 ` or `VP8L` chunk) gains a `VP8X`
+/// header with the canvas size read from the bitstream, since only the
+/// extended format can carry Exif. A new `EXIF` chunk goes before `XMP `,
+/// or last. Everything else is copied verbatim. Only chunk headers, the
+/// `VP8X` flags and the first bytes of the bitstream are read.
+pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Result<Pieces> {
+    let (spans, rest) = spans(input, len)?;
     let new_chunk = tiff.map(|t| chunk(b"EXIF", t)).transpose()?;
     let target = spans.iter().position(|s| &s.fourcc == b"EXIF");
     let has_vp8x = spans.iter().any(|s| &s.fourcc == b"VP8X");
@@ -211,19 +218,20 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
         (Some(_), false) => {
             // A simple file starts with its bitstream chunk. Anything else
             // without VP8X is not a layout we can extend safely.
-            let (width, height, alpha) =
-                spans
-                    .first()
-                    .and_then(|s| canvas(data, s))
-                    .ok_or(Error::Unsupported {
-                        what: "WebP without VP8X whose first chunk is not an image bitstream with a canvas size",
-                    })?;
-            let mut payload = alloc::vec![0u8; 10];
+            let first = match spans.first() {
+                Some(span) => canvas(input, span)?,
+                None => None,
+            };
+            let (width, height, alpha) = first.ok_or(Error::Unsupported {
+                what: "WebP without VP8X whose first chunk is not an image bitstream with a canvas size",
+            })?;
             let flags = FLAG_EXIF | if alpha { FLAG_ALPHA } else { 0 };
             let w = width.saturating_sub(1).to_le_bytes();
             let h = height.saturating_sub(1).to_le_bytes();
-            payload.copy_from_slice(&[flags, 0, 0, 0, w[0], w[1], w[2], h[0], h[1], h[2]]);
-            Some(chunk(b"VP8X", &payload)?)
+            Some(chunk(
+                b"VP8X",
+                &[flags, 0, 0, 0, w[0], w[1], w[2], h[0], h[1], h[2]],
+            )?)
         }
         _ => None,
     };
@@ -237,12 +245,9 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
         _ => None,
     };
 
-    let mut body = Vec::with_capacity(
-        data.len()
-            .saturating_add(new_chunk.as_ref().map_or(0, Vec::len)),
-    );
-    if let Some(vp8x) = &new_vp8x {
-        body.extend_from_slice(vp8x);
+    let mut body = Pieces::default();
+    if let Some(vp8x) = new_vp8x {
+        body.bytes(vp8x);
     }
     for (index, span) in spans.iter().enumerate() {
         if Some(index) == insert_at
@@ -259,19 +264,19 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
         if &span.fourcc == b"EXIF" {
             continue;
         }
-        let original = data.get(span.start..span.end).unwrap_or_default();
-        if &span.fourcc == b"VP8X" {
-            let mut vp8x = original.to_vec();
-            if let Some(flags) = vp8x.get_mut(8) {
-                if new_chunk.is_some() {
-                    *flags |= FLAG_EXIF;
+        let flags_at = span.start.saturating_add(8);
+        match input.array::<1>(flags_at)? {
+            Some([flags]) if &span.fourcc == b"VP8X" && flags_at < span.end => {
+                let flags = if new_chunk.is_some() {
+                    flags | FLAG_EXIF
                 } else {
-                    *flags &= !FLAG_EXIF;
-                }
+                    flags & !FLAG_EXIF
+                };
+                body.copy(span.start..flags_at);
+                body.bytes([flags]);
+                body.copy(flags_at.saturating_add(1)..span.end);
             }
-            body.extend_from_slice(&vp8x);
-        } else {
-            body.extend_from_slice(original);
+            _ => body.copy(span.start..span.end),
         }
     }
     if insert_at == Some(spans.len())
@@ -281,15 +286,16 @@ pub(super) fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
     }
 
     let riff_size = u32::try_from(body.len().saturating_add(4)).map_err(|_| Error::TooLarge {
-        size: body.len(),
+        size: usize::try_from(body.len()).unwrap_or(usize::MAX),
         max: u32::MAX as usize,
     })?;
-    let mut out = Vec::with_capacity(body.len().saturating_add(12));
-    out.extend_from_slice(b"RIFF");
-    out.extend_from_slice(&riff_size.to_le_bytes());
-    out.extend_from_slice(b"WEBP");
-    out.extend_from_slice(&body);
-    out.extend_from_slice(data.get(rest..).unwrap_or_default());
+    let mut out = Pieces::default();
+    let mut header = b"RIFF".to_vec();
+    header.extend_from_slice(&riff_size.to_le_bytes());
+    header.extend_from_slice(b"WEBP");
+    out.bytes(header);
+    out.extend(body);
+    out.copy(rest..len);
     Ok(out)
 }
 
@@ -363,6 +369,13 @@ mod splice_tests {
     use alloc::vec::Vec;
 
     use super::*;
+
+    /// The plan, run over a file held in memory.
+    fn splice(data: &[u8], tiff: Option<&[u8]>) -> Result<Vec<u8>> {
+        let mut input = crate::container::Slice(data);
+        let len = u64::try_from(data.len()).unwrap();
+        plan(&mut input, len, tiff)?.to_vec(&mut input)
+    }
 
     const TIFF: &[u8] = b"II*\0\x08\0\0\0\0\0\0\0\0\0";
 
@@ -491,5 +504,24 @@ mod splice_tests {
             splice(&original, Some(TIFF)),
             Err(Error::Unsupported { .. })
         ));
+    }
+
+    #[test]
+    fn extracts_xmp_and_icc_chunks() {
+        let data = webp(&[
+            vp8x(0x2C, 8, 8),
+            raw(b"ICCP", b"profile"),
+            vp8l(8, 8, false),
+            raw(b"XMP ", b"<x/>"),
+        ]);
+        assert_eq!(chunk_data(&data, b"ICCP").unwrap(), Some(&b"profile"[..]));
+        assert_eq!(chunk_data(&data, b"XMP ").unwrap(), Some(&b"<x/>"[..]));
+        let written = splice(&data, Some(TIFF)).unwrap();
+        assert_eq!(
+            chunk_data(&written, b"ICCP").unwrap(),
+            Some(&b"profile"[..])
+        );
+        assert_eq!(chunk_data(&written, b"XMP ").unwrap(), Some(&b"<x/>"[..]));
+        assert_eq!(chunk_data(&webp(&[vp8(8, 8)]), b"XMP ").unwrap(), None);
     }
 }
