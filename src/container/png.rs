@@ -316,7 +316,7 @@ fn keyword<'a>(data: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
 /// lookup tables and padded XMP compress far better than any fixed ratio;
 /// inflating stops at the cap, so a zlib bomb still cannot exhaust memory.
 #[cfg(feature = "inflate")]
-const INFLATE_LIMIT: usize = 64 * 1024 * 1024;
+const INFLATE_LIMIT: usize = super::METADATA_LIMIT;
 
 /// The XMP packet: the `iTXt` chunk with keyword `XML:com.adobe.xmp`.
 pub(super) fn xmp(data: &[u8]) -> Result<Option<alloc::borrow::Cow<'_, [u8]>>> {

@@ -276,7 +276,10 @@ the size `jbrd` records. Checked with libjxl: one byte more or less and
 `djxl` silently falls back to decoding pixels. Whether `jbrd` records an
 Exif segment is read from the start of its header (the marker list, then
 each APP segment's type), as libjxl's `JPEGData` fields encode it; a JPEG
-transcoded without Exif records none. So when `jbrd` records an Exif segment,
+transcoded without Exif records none. The recorded segment length also
+gives the required box size (libjxl's `ExifBoxContentSize`: the segment
+minus its marker, length and `Exif\0\0`, plus the 4-byte offset), so no
+`brob` box needs decompressing to find it. So when `jbrd` records an Exif segment,
 the new TIFF block is padded with zeros to the original payload size (and
 the rebuilt JPEG then carries the new Exif); a bigger block is
 `Error::TooLarge` rather than a silent loss of the lossless round trip.

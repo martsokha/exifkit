@@ -72,6 +72,21 @@ impl fmt::Display for Format {
     }
 }
 
+/// Most bytes a decoded metadata block (compressed Exif or XMP, a PNG ICC
+/// profile) may inflate to. Fixed rather than scaled with the file, so a
+/// small compressed box in a large image cannot expand without bound.
+pub(crate) const METADATA_LIMIT: usize = 64 * 1024 * 1024;
+
+/// Whether this build can decode a payload stored this way.
+#[cfg(feature = "std")]
+pub(crate) const fn decodable(encoding: Encoding) -> bool {
+    match encoding {
+        Encoding::Raw => true,
+        Encoding::Brotli => cfg!(feature = "jxl-brob"),
+        Encoding::PngRawProfile { .. } => cfg!(feature = "png-legacy"),
+    }
+}
+
 /// How many leading bytes [`detect`] looks at.
 pub const DETECT_LEN: usize = 16;
 

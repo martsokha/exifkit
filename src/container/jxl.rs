@@ -153,22 +153,28 @@ pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Res
     // With JPEG reconstruction data that records an Exif segment, the Exif
     // payload must keep its size, or the original JPEG can no longer be
     // rebuilt (see `reconstructable`).
-    let reconstruction = match boxes.iter().find(|b| &b.kind == b"jbrd") {
+    let recorded = match boxes.iter().find(|b| &b.kind == b"jbrd") {
         Some(jbrd) => {
             let end = jbrd
                 .data
                 .end
                 .min(jbrd.data.start.saturating_add(JBRD_HEADER_MAX));
-            records_exif(&super::pieces::read_range(input, jbrd.data.start..end)?)
+            recorded(&super::pieces::read_range(input, jbrd.data.start..end)?)
         }
-        None => false,
+        None => Recorded::Nothing,
     };
-    let new_box = match (
-        target.and_then(|t| Some((boxes.get(t)?, exif.get(t)?.as_ref()?))),
-        reconstruction,
-    ) {
-        (Some((b, kind)), true) => {
-            let size = payload_size(input, b, kind)?;
+    let existing = target.and_then(|t| Some((boxes.get(t)?, exif.get(t)?.as_ref()?)));
+    let size = match (recorded, existing) {
+        (Recorded::Exif(size), _) => Some(size),
+        // Unreadable: keep the box's current size, the safe choice. Only
+        // here does a `brob` box need decompressing.
+        (Recorded::Unreadable, Some((b, kind))) => Some(payload_size(input, b, kind)?),
+        _ => None,
+    };
+    let new_box = match size {
+        // Even with no Exif box left (another tool dropped it), padding a
+        // new one to the recorded size makes the reconstruction work again.
+        Some(size) if tiff.is_some() || existing.is_some() => {
             Some(exif_box(&reconstructable(tiff, size)?))
         }
         _ => tiff.map(exif_box),
@@ -206,18 +212,30 @@ pub(super) fn plan(input: &mut impl Input, len: u64, tiff: Option<&[u8]>) -> Res
 /// then for each APP marker a type and a 16-bit length.
 const JBRD_HEADER_MAX: u64 = 64 * 1024;
 
-/// Whether JPEG reconstruction data (a `jbrd` box) records an Exif APP
-/// segment, which is when `djxl` needs the Exif box to have the recorded
-/// size. A transcode of a JPEG without Exif records none, and later Exif is
-/// then free to change size.
+/// What JPEG reconstruction data (a `jbrd` box) says about Exif.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Recorded {
+    /// No Exif APP segment: the Exif box is not part of the reconstruction
+    /// and may change size freely (a transcode of a JPEG without Exif).
+    Nothing,
+    /// An Exif APP segment: `djxl` rebuilds the JPEG only if the Exif box
+    /// payload has exactly this size.
+    Exif(u64),
+    /// The header could not be read.
+    Unreadable,
+}
+
+/// Reads what JPEG reconstruction data records about Exif.
 ///
 /// Reads the start of libjxl's `JPEGData` fields (`lib/jxl/jpeg/jpeg_data.cc`,
 /// bits read LSB first): the gray flag, the marker list as 6-bit
 /// `marker - 0xC0` values up to EOI, then each APP segment's type (a U32
-/// with selectors 0, 1, 2 + 1 bit, 4 + 2 bits; Exif is 2) and length. If the
-/// header cannot be read, it answers `true`, which keeps the size: the safe
-/// choice.
-fn records_exif(jbrd: &[u8]) -> bool {
+/// with selectors 0, 1, 2 + 1 bit, 4 + 2 bits; Exif is 2) and 16-bit
+/// `size - 1`. The segment size counts the marker byte, the two length
+/// bytes and `Exif\0\0`; the box payload drops those 9 bytes and adds the
+/// 4-byte offset, so it is the stored value minus 4 (libjxl's
+/// `ExifBoxContentSize`).
+fn recorded(jbrd: &[u8]) -> Recorded {
     let mut bits = Bits { data: jbrd, at: 0 };
     let parsed = (|| {
         bits.read(1)?; // is_gray
@@ -235,17 +253,21 @@ fn records_exif(jbrd: &[u8]) -> bool {
                         2 => bits.read(1)?.saturating_add(2),
                         _ => bits.read(2)?.saturating_add(4),
                     };
-                    bits.read(16)?; // length - 1
+                    let stored = bits.read(16)?;
                     if kind == 2 {
-                        return Some(true);
+                        // Shorter than its own header: libjxl rejects it too.
+                        return Some(match stored.checked_sub(4) {
+                            Some(size) if stored >= 9 => Recorded::Exif(u64::from(size)),
+                            _ => Recorded::Unreadable,
+                        });
                     }
                 }
-                return Some(false);
+                return Some(Recorded::Nothing);
             }
         }
         None
     })();
-    parsed.unwrap_or(true)
+    parsed.unwrap_or(Recorded::Unreadable)
 }
 
 /// An LSB-first bit reader, as JPEG XL headers use.
@@ -275,7 +297,7 @@ fn payload_size(input: &mut impl Input, b: &BmffBox, kind: &Exif) -> Result<u64>
         Exif::Brotli => {
             let compressed =
                 super::pieces::read_range(input, b.data.start.saturating_add(4)..b.data.end)?;
-            let payload = decompress(&compressed, 64 * 1024 * 1024)?;
+            let payload = decompress(&compressed, super::METADATA_LIMIT)?;
             Ok(u64::try_from(payload.len()).unwrap_or(u64::MAX))
         }
     }
@@ -324,7 +346,7 @@ pub(super) fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
         match (&b.kind, payload.strip_prefix(b"xml ")) {
             (b"xml ", _) => return Ok(Some(Cow::Borrowed(payload))),
             (b"brob", Some(compressed)) => {
-                return decompress(compressed, 64 * 1024 * 1024).map(|x| Some(Cow::Owned(x)));
+                return decompress(compressed, super::METADATA_LIMIT).map(|x| Some(Cow::Owned(x)));
             }
             _ => {}
         }
@@ -502,9 +524,9 @@ mod tests {
 
     #[test]
     fn reconstruction_data_pins_the_exif_size() {
-        let jbrd = bx(b"jbrd", &jbrd_header(&[2]));
-        let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
         let original = [TIFF, &[0u8; 10]].concat();
+        let jbrd = bx(b"jbrd", &jbrd_header(&[2], 4 + original.len() as u32));
+        let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
         let data = jxl(&[jbrd.clone(), exif(0, &original), codestream.clone()]);
         // Smaller: padded back to the original size.
         let out = splice(&data, Some(TIFF)).unwrap();
@@ -526,6 +548,27 @@ mod tests {
         assert_eq!(exif.entries().count(), 0);
     }
 
+    #[test]
+    fn recorded_size_needs_no_decompression() {
+        // Found in review: removing a `brob` Exif that the reconstruction
+        // records must not need `jxl-brob`; the size comes from `jbrd`.
+        let jbrd = bx(b"jbrd", &jbrd_header(&[2], 4 + TIFF.len() as u32));
+        let brob = bx(b"brob", &[b"Exif", BROTLI_EXIF].concat());
+        let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
+        let data = jxl(&[jbrd.clone(), brob, codestream.clone()]);
+        let out = splice(&data, None).unwrap();
+        assert_eq!(out, jxl(&[jbrd.clone(), exif(0, TIFF), codestream.clone()]));
+        // With the Exif box gone (another tool dropped it), a new one is
+        // padded to the recorded size, so the reconstruction works again.
+        let data = jxl(&[jbrd.clone(), codestream.clone()]);
+        let small = &TIFF[..8];
+        let padded = [small, &[0u8; 6]].concat();
+        assert_eq!(
+            splice(&data, Some(small)).unwrap(),
+            jxl(&[jbrd, exif(0, &padded), codestream])
+        );
+    }
+
     /// Packs `(value, bits)` fields LSB first, as JPEG XL headers are.
     fn pack(fields: &[(u32, usize)]) -> Vec<u8> {
         let mut out = Vec::new();
@@ -542,8 +585,9 @@ mod tests {
         out
     }
 
-    /// A `jbrd` header: SOI, the given APP segment types, then EOI.
-    fn jbrd_header(apps: &[u32]) -> Vec<u8> {
+    /// A `jbrd` header: SOI, the given APP segment types, then EOI. An Exif
+    /// segment records an Exif box payload of `exif` bytes; others store 99.
+    fn jbrd_header(apps: &[u32], exif: u32) -> Vec<u8> {
         let mut fields = vec![(0, 1), (0xD8 - 0xC0, 6)];
         fields.extend(apps.iter().map(|_| (0xE1 - 0xC0, 6)));
         fields.push((0xD9 - 0xC0, 6));
@@ -553,27 +597,34 @@ mod tests {
                 2 | 3 => fields.extend([(2, 2), (kind - 2, 1)]),
                 _ => fields.extend([(3, 2), (kind - 4, 2)]),
             }
-            fields.push((99, 16));
+            fields.push((if kind == 2 { exif + 4 } else { 99 }, 16));
         }
         pack(&fields)
     }
 
     #[test]
-    fn reads_whether_reconstruction_records_exif() {
-        assert!(records_exif(&jbrd_header(&[2])));
-        assert!(records_exif(&jbrd_header(&[1, 3, 2])));
-        assert!(!records_exif(&jbrd_header(&[])));
-        assert!(!records_exif(&jbrd_header(&[0, 1, 3])));
-        // Unreadable: keep the size, the safe answer.
-        assert!(records_exif(&[]));
-        assert!(records_exif(&jbrd_header(&[1, 2])[..2]));
+    fn reads_what_reconstruction_records_about_exif() {
+        assert_eq!(recorded(&jbrd_header(&[2], 95)), Recorded::Exif(95));
+        assert_eq!(
+            recorded(&jbrd_header(&[1, 3, 2], 2468)),
+            Recorded::Exif(2468)
+        );
+        assert_eq!(recorded(&jbrd_header(&[], 0)), Recorded::Nothing);
+        assert_eq!(recorded(&jbrd_header(&[0, 1, 3], 0)), Recorded::Nothing);
+        assert_eq!(recorded(&[]), Recorded::Unreadable);
+        assert_eq!(
+            recorded(&jbrd_header(&[1, 2], 95)[..2]),
+            Recorded::Unreadable
+        );
+        // A segment shorter than its own header, as libjxl rejects.
+        assert_eq!(recorded(&jbrd_header(&[2], 0)), Recorded::Unreadable);
     }
 
     #[test]
     fn exif_added_to_a_transcode_without_exif_can_grow() {
         // Found in review: Exif added after transcoding is not part of the
         // reconstruction, so a later, bigger edit must not be refused.
-        let jbrd = bx(b"jbrd", &jbrd_header(&[1]));
+        let jbrd = bx(b"jbrd", &jbrd_header(&[1], 0));
         let codestream = bx(b"jxlc", &[0xFF, 0x0A]);
         let data = jxl(&[jbrd.clone(), exif(0, TIFF), codestream.clone()]);
         let bigger = [TIFF, &[0u8; 11]].concat();

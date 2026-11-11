@@ -103,8 +103,15 @@ impl Exif {
         let mut diagnostics = crate::diagnostic::Diagnostics::default();
         let located = container::locate_in(&mut input, &mut diagnostics)?;
         // The file's own block, read from the stream, is the source.
+        // Read only a block this build can decode, and (outside TIFF, whose
+        // block is the whole file) no more than a metadata block can be.
+        let fits = |range: &core::ops::Range<u64>| {
+            located.format == Format::Tiff
+                || range.end.saturating_sub(range.start)
+                    <= u64::try_from(container::METADATA_LIMIT).unwrap_or(u64::MAX)
+        };
         let own = match (&located.exif, options.source) {
-            (Some(range), None) => {
+            (Some(range), None) if container::decodable(located.encoding) && fits(range) => {
                 let payload = container::read_range(&mut input, range.clone())?;
                 let len = container::Input::len(&mut input)?.unwrap_or(range.end);
                 own_block(
@@ -156,7 +163,9 @@ fn own_block<'a>(
     located: &container::Located,
     file_len: usize,
 ) -> Option<Cow<'a, [u8]>> {
-    let limit = crate::limits::Limits::DEFAULT.alloc_budget(file_len);
+    let limit = crate::limits::Limits::DEFAULT
+        .alloc_budget(file_len)
+        .min(container::METADATA_LIMIT);
     let mut diagnostics = crate::diagnostic::Diagnostics::default();
     container::tiff_payload(payload, located.encoding, limit, &mut diagnostics)
         .ok()
