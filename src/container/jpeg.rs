@@ -419,8 +419,8 @@ pub(super) fn icc(data: &[u8]) -> Result<Option<Vec<u8>>> {
     let complete = usize::from(count) == chunks.len()
         && chunks
             .iter()
-            .zip(1u8..)
-            .all(|(&(seq, c, ..), expected)| seq == expected && c == count);
+            .enumerate()
+            .all(|(i, &(seq, c, ..))| usize::from(seq) == i.saturating_add(1) && c == count);
     if !complete {
         return Err(malformed(
             first,
@@ -705,6 +705,9 @@ mod splice_tests {
         assert_eq!(xmp(&jpeg(&[jfif()])).unwrap(), None);
         assert_eq!(super::icc(&jpeg(&[jfif()])).unwrap(), None);
         // A missing or repeated segment is an error, not a corrupt profile.
+        // 255 segments (the most a count byte allows) must not overflow.
+        let all: Vec<_> = (1..=255).map(|seq| icc(seq, 255, b"x")).collect();
+        assert_eq!(super::icc(&jpeg(&all)).unwrap().map(|p| p.len()), Some(255));
         for broken in [
             vec![icc(1, 2, b"a")],
             vec![icc(1, 2, b"a"), icc(1, 2, b"b")],

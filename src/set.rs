@@ -217,12 +217,33 @@ macro_rules! direct_impls {
 direct_impls!(Rational => Rational, SRational => SRational, f32 => Float, f64 => Double);
 
 /// Text: ASCII when it is ASCII and the tag allows ASCII, else UTF-8. An
-/// UNDEFINED-only tag (such as `ExifVersion`) gets the bytes as they are.
+/// UNDEFINED-only tag (such as `ExifVersion`) gets the bytes as they are,
+/// except the encoded-text tags (`UserComment`, `GPSProcessingMethod`,
+/// `GPSAreaInformation`): ASCII text gets the `ASCII` prefix, and other
+/// text is an error, since UTF-16 needs [`EncodedText::new`] with the
+/// file's byte order.
 impl IntoValue for &str {
     fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
         let info = tag.info();
         let kind = info.and_then(TagInfo::string_kind);
         if kind.is_none() && info.is_some_and(|i| i.types.contains(&Type::Undefined)) {
+            // These need the 8-byte character-code prefix. ASCII text gets the
+            // ASCII one; other text needs a byte order for UTF-16, so it has
+            // to come through `EncodedText::new`.
+            if [
+                Tag::USER_COMMENT,
+                Tag::GPS_PROCESSING_METHOD,
+                Tag::GPS_AREA_INFORMATION,
+            ]
+            .contains(&tag)
+            {
+                if !self.is_ascii() {
+                    return Err(ValueError::WrongType {
+                        found: Some(Type::Utf8),
+                    });
+                }
+                return EncodedText::new(self, ByteOrder::LittleEndian).into_value(tag);
+            }
             return Ok(Value::Undefined(self.as_bytes().to_vec()));
         }
         // NUL terminates an ASCII value; text cannot contain it.

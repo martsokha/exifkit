@@ -205,6 +205,18 @@ fn encoded_text_and_copyright_round_trip() {
             assert_eq!(back.text().as_deref(), Some(text));
         }
     }
+    // Plain text gets the ASCII prefix, so the getter reads it back.
+    exif.set(Tag::USER_COMMENT, "hi").unwrap();
+    assert_eq!(
+        exif.user_comment().unwrap().unwrap().text().as_deref(),
+        Some("hi")
+    );
+    assert!(matches!(
+        invalid(exif.set(Tag::USER_COMMENT, "привіт")),
+        Some(ValueError::WrongType { .. })
+    ));
+    // ExifVersion still takes the bytes as they are.
+    exif.set(Tag::EXIF_VERSION, "0300").unwrap();
     let copyright = Copyright {
         photographer: None,
         editor: Some("Editor".to_string()),

@@ -312,11 +312,11 @@ fn keyword<'a>(data: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
     Some((body.get(..nul)?, body.get(nul.saturating_add(1)..)?))
 }
 
-/// Output cap for inflating `input` bytes, as [`Limits::max_alloc`](crate::Limits::max_alloc)'s default.
+/// Output cap for inflating a PNG metadata chunk. Absolute, since ICC
+/// lookup tables and padded XMP compress far better than any fixed ratio;
+/// inflating stops at the cap, so a zlib bomb still cannot exhaust memory.
 #[cfg(feature = "inflate")]
-fn inflate_limit(input: usize) -> usize {
-    input.saturating_mul(4).saturating_add(64 * 1024)
-}
+const INFLATE_LIMIT: usize = 64 * 1024 * 1024;
 
 /// The XMP packet: the `iTXt` chunk with keyword `XML:com.adobe.xmp`.
 pub(super) fn xmp(data: &[u8]) -> Result<Option<alloc::borrow::Cow<'_, [u8]>>> {
@@ -342,7 +342,7 @@ pub(super) fn xmp(data: &[u8]) -> Result<Option<alloc::borrow::Cow<'_, [u8]>>> {
             return Ok(Some(Cow::Borrowed(text)));
         }
         #[cfg(feature = "inflate")]
-        return inflate(text, inflate_limit(text.len())).map(|t| Some(Cow::Owned(t)));
+        return inflate(text, INFLATE_LIMIT).map(|t| Some(Cow::Owned(t)));
         #[cfg(not(feature = "inflate"))]
         return Err(Error::Unsupported {
             what: "compressed PNG XMP (enable the `inflate` feature)",
@@ -380,7 +380,7 @@ fn legacy_xmp(data: &[u8], spans: &[Span]) -> Result<Option<Vec<u8>>> {
             .body(data)
             .get(index(u64::from(text_offset))..)
             .unwrap_or_default();
-        return decode_raw_profile(text, compressed, inflate_limit(text.len())).map(Some);
+        return decode_raw_profile(text, compressed, INFLATE_LIMIT).map(Some);
     }
     Ok(None)
 }
@@ -399,7 +399,7 @@ pub(super) fn icc(data: &[u8]) -> Result<Option<Vec<u8>>> {
         return Err(malformed(span.start, "invalid iCCP chunk"));
     };
     #[cfg(feature = "inflate")]
-    return inflate(compressed, inflate_limit(compressed.len())).map(Some);
+    return inflate(compressed, INFLATE_LIMIT).map(Some);
     #[cfg(not(feature = "inflate"))]
     {
         let _ = compressed;
@@ -858,7 +858,8 @@ mod splice_tests {
     #[test]
     #[cfg(feature = "inflate")]
     fn inflates_iccp_and_compressed_xmp() {
-        let profile = b"an ICC profile, repeated: an ICC profile";
+        // Highly compressible, as ICC lookup tables are: far beyond 4:1.
+        let profile = &[7u8; 300_000][..];
         let mut iccp = b"sRGB\0\0".to_vec();
         iccp.extend(miniz_oxide::deflate::compress_to_vec_zlib(profile, 6));
         let mut itxt = b"XML:com.adobe.xmp\0\x01\0\0\0".to_vec();
@@ -871,11 +872,11 @@ mod splice_tests {
             chunk(b"iTXt", &itxt),
             chunk(b"IDAT", b"pixels"),
         ]);
-        assert_eq!(icc(&data).unwrap().as_deref(), Some(&profile[..]));
+        assert_eq!(icc(&data).unwrap().as_deref(), Some(profile));
         assert_eq!(xmp(&data).unwrap().as_deref(), Some(&b"<x:xmpmeta/>"[..]));
         // Writing Exif leaves both alone.
         let written = splice(&data, Some(TIFF)).unwrap();
-        assert_eq!(icc(&written).unwrap().as_deref(), Some(&profile[..]));
+        assert_eq!(icc(&written).unwrap().as_deref(), Some(profile));
         // A non-zlib method is refused.
         let data = png(&[chunk(b"iCCP", b"sRGB\0\x01junk"), chunk(b"IDAT", b"pixels")]);
         assert!(matches!(icc(&data), Err(Error::Malformed { .. })));
