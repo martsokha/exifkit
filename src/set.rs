@@ -351,15 +351,22 @@ impl IntoValue for EncodedText {
 }
 
 /// `"photographer\0editor\0"`; an absent photographer is a single space
-/// when there is an editor, as the spec writes it.
+/// when there is an editor, as the spec writes it. ASCII text is stored as
+/// ASCII, other text (such as "©") as UTF-8.
 impl IntoValue for Copyright {
-    fn into_value(self, _: Tag) -> Result<Value, ValueError> {
+    fn into_value(self, tag: Tag) -> Result<Value, ValueError> {
         let photographer = self.photographer.as_deref().unwrap_or("");
         let editor = self.editor.as_deref();
         if photographer.contains('\0') || editor.is_some_and(|e| e.contains('\0')) {
             return Err(ValueError::Invalid);
         }
-        if !photographer.is_ascii() || editor.is_some_and(|e| !e.is_ascii()) {
+        let ascii = photographer.is_ascii() && editor.is_none_or(str::is_ascii);
+        // Exif 3.0 allows UTF-8 here, so "©" works; `set` then raises
+        // `ExifVersion`. A tag that is ASCII-only still refuses it.
+        let utf8_allowed = tag
+            .info()
+            .is_none_or(|info| info.types.contains(&Type::Utf8));
+        if !ascii && !utf8_allowed {
             return Err(ValueError::WrongType {
                 found: Some(Type::Utf8),
             });
@@ -381,7 +388,11 @@ impl IntoValue for Copyright {
             None => bytes.extend_from_slice(photographer.as_bytes()),
         }
         bytes.push(0);
-        Ok(Value::Ascii(bytes))
+        Ok(if ascii {
+            Value::Ascii(bytes)
+        } else {
+            Value::Utf8(bytes)
+        })
     }
 }
 

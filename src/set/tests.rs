@@ -227,6 +227,18 @@ fn encoded_text_and_copyright_round_trip() {
         &Value::Ascii(b" \0Editor\0".to_vec())
     );
     assert_eq!(exif.copyright().unwrap(), Some(copyright));
+    // "©" needs UTF-8, which Exif 3.0 allows for Copyright.
+    let copyright = Copyright {
+        photographer: Some("© 2026 Олена".to_string()),
+        editor: Some("Editor".to_string()),
+    };
+    exif.set(Tag::COPYRIGHT, copyright.clone()).unwrap();
+    assert!(matches!(
+        exif.entry(Tag::COPYRIGHT).unwrap().value(),
+        Value::Utf8(_)
+    ));
+    assert_eq!(exif.copyright().unwrap(), Some(copyright));
+    assert_eq!(exif_version(&exif).as_deref(), Some(&b"0300"[..]));
 }
 
 #[test]
