@@ -55,7 +55,12 @@ What we do differently from this design:
   so both give identical output (checked on the corpus and by the
   `write_into` fuzz target). Only marker and chunk headers, Exif headers,
   the MPF segment, text-chunk keywords, the `VP8X` flags and the first
-  bytes of a WebP bitstream are read.
+  bytes of a WebP bitstream are read. The file's own Exif block is read as
+  the writer's source only if this build can decode it, at most 64 MiB of
+  it (`METADATA_LIMIT`), growing as bytes arrive rather than preallocated
+  from a length field. A `brob` block is decompressed straight from the
+  stream, output capped at the same limit. TIFF is the exception: the file
+  is its own Exif block and is read whole.
 - **Raw formats:** Olympus ORF (`IIRO`, `MMOR`, `IIRS`) and Panasonic RW2
   (`IIU\0`) are TIFF structures under their own magic number. They are
   detected as `Format::Tiff`, and `write_into` keeps the file's magic.

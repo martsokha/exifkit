@@ -209,3 +209,28 @@ These are why we don't build on it. Each is worth reporting upstream.
 What we take from it: its MPF entry update (`jpeg/mpf.rs`) is a useful
 reference for our MPF check, and its `exif()` accessor can serve as a
 second opinion on where the Exif block is in the corpus files.
+
+## Memory bounds on hostile lengths
+
+Checked against the published sources (little_exif 0.6.23, kamadak-exif
+0.6.2, nom-exif 3.8.0, img-parts 0.4.2, rexif 0.7.6, jxl-oxide 0.12.6):
+
+- **little_exif** allocates from untrusted u32 box and chunk sizes before
+  the bytes exist (`vec![0u8; len]` then `read_exact`, in its JXL, WebP, PNG
+  and HEIF readers), so a tiny file can force a ~4 GiB allocation. Brotli
+  (`brob`) and zlib decompression have no output cap. Writes hold the whole
+  file in memory.
+- **kamadak-exif** reads lengths with `take(len).read_to_end` on purpose (a
+  comment in `util.rs` explains the OOM risk of preallocating), caps HEIF
+  Exif at 128 KiB, but reads TIFF input to the end. No compressed metadata.
+- **nom-exif** grows buffers as bytes arrive, with a 1 GiB hard cap and
+  per-chunk caps on PNG text. Read-only.
+- **img-parts** slices a fully resident input with checked splits and caps
+  `iCCP` inflation at 16 MiB.
+- **rexif** reads the whole file, then bounds-checks before `try_reserve`.
+- **jxl-oxide** streams `brob` input, but found no output cap.
+
+exifkit: buffers grow as bytes arrive (`read_range`), decoded metadata is
+capped at 64 MiB (`METADATA_LIMIT`), `brob` is decompressed straight from
+the stream, and `write_stream` holds only metadata, except for TIFF, whose
+whole file is the writer's source.

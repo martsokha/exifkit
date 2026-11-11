@@ -77,6 +77,18 @@ impl fmt::Display for Format {
 /// small compressed box in a large image cannot expand without bound.
 pub(crate) const METADATA_LIMIT: usize = 64 * 1024 * 1024;
 
+/// Decodes a Brotli-compressed JPEG XL Exif payload straight from `range` of
+/// `input`: the compressed data is streamed into the decompressor, never held
+/// whole. Returns the TIFF block.
+#[cfg(feature = "jxl-brob")]
+pub(crate) fn decode_brob_in(
+    input: &mut impl Input,
+    range: Range<u64>,
+    limit: usize,
+) -> Result<alloc::vec::Vec<u8>> {
+    jxl::decode_brob_in(input, range, limit)
+}
+
 /// Whether this build can decode a payload stored this way.
 #[cfg(feature = "std")]
 pub(crate) const fn decodable(encoding: Encoding) -> bool {

@@ -111,19 +111,48 @@ impl Pieces {
     }
 }
 
-/// Reads `range` into memory, failing if the input ends first.
+/// Reads `range` into memory, failing if the input ends first. The buffer
+/// grows in 64 KiB steps as bytes arrive, so a range claiming more than the
+/// input holds fails before allocating it.
 pub(crate) fn read_range(input: &mut impl Input, range: Range<u64>) -> Result<Vec<u8>> {
-    let len =
-        usize::try_from(range.end.saturating_sub(range.start)).map_err(|_| Error::TooLarge {
-            size: usize::MAX,
-            max: usize::MAX,
-        })?;
-    let mut buf = alloc::vec![0u8; len];
-    if !input.read_at(range.start, &mut buf)? {
-        return Err(Error::Malformed {
-            offset: range.start,
-            reason: "truncated chunk",
-        });
+    const STEP: u64 = 64 * 1024;
+    let mut out = Vec::new();
+    let mut at = range.start;
+    while at < range.end {
+        let n = range.end.saturating_sub(at).min(STEP);
+        let start = out.len();
+        out.resize(start.saturating_add(usize::try_from(n).unwrap_or(0)), 0);
+        if !input.read_at(at, out.get_mut(start..).unwrap_or_default())? {
+            return Err(Error::Malformed {
+                offset: at,
+                reason: "truncated chunk",
+            });
+        }
+        at = at.saturating_add(n);
     }
-    Ok(buf)
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::container::Slice;
+
+    #[test]
+    fn read_range_reads_in_steps_and_refuses_past_the_end() {
+        let data: Vec<u8> = (0..200_000u32).map(|i| i as u8).collect();
+        assert_eq!(
+            read_range(&mut Slice(&data), 10..150_000).unwrap(),
+            &data[10..150_000]
+        );
+        assert_eq!(
+            read_range(&mut Slice(&data), 5..5).unwrap(),
+            Vec::<u8>::new()
+        );
+        // Claiming far more than the input holds fails without allocating it.
+        assert!(matches!(
+            read_range(&mut Slice(&data), 0..u64::MAX),
+            Err(Error::Malformed { .. })
+        ));
+    }
 }

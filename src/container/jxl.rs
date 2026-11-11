@@ -85,8 +85,12 @@ pub(super) fn locate(input: &mut impl Input, diagnostics: &mut Diagnostics) -> R
 
 /// Decompresses a `brob` Exif payload and returns the TIFF block inside it.
 pub(super) fn decode_brob(compressed: &[u8], limit: usize) -> Result<Vec<u8>> {
-    let mut out = decompress(compressed, limit)?;
-    // The decompressed `Exif` box payload: u32 offset, then the TIFF block.
+    tiff_of_payload(decompress(compressed, limit)?)
+}
+
+/// The TIFF block of a decompressed `Exif` box payload: a u32 offset, then
+/// the TIFF block.
+fn tiff_of_payload(mut out: Vec<u8>) -> Result<Vec<u8>> {
     let len = u64::try_from(out.len()).unwrap_or(u64::MAX);
     let tiff = bmff::exif_tiff(&mut super::Slice(&out), 0..len)?.ok_or(Error::Malformed {
         offset: 0,
@@ -359,23 +363,7 @@ pub(super) fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
 /// Brotli bomb.
 fn decompress(compressed: &[u8], limit: usize) -> Result<Vec<u8>> {
     #[cfg(feature = "jxl-brob")]
-    {
-        use std::io::Read;
-
-        let limit = u64::try_from(limit).unwrap_or(u64::MAX);
-        let mut out = Vec::new();
-        brotli_decompressor::Decompressor::new(compressed, 4096)
-            .take(limit.saturating_add(1))
-            .read_to_end(&mut out)
-            .map_err(|_| Error::Malformed {
-                offset: 0,
-                reason: "invalid Brotli data in JPEG XL brob box",
-            })?;
-        if u64::try_from(out.len()).unwrap_or(u64::MAX) > limit {
-            return Err(Error::LimitExceeded(crate::limits::Limit::Alloc));
-        }
-        Ok(out)
-    }
+    return decompress_from(compressed, limit);
     #[cfg(not(feature = "jxl-brob"))]
     {
         let _ = (compressed, limit);
@@ -383,6 +371,71 @@ fn decompress(compressed: &[u8], limit: usize) -> Result<Vec<u8>> {
             what: "Brotli-compressed JPEG XL box (enable the `jxl-brob` feature)",
         })
     }
+}
+
+/// Decompresses Brotli data read from `reader`, failing past `limit` output
+/// bytes. Both sides are streamed: neither the compressed input nor more
+/// than `limit + 1` output bytes are ever held whole.
+#[cfg(feature = "jxl-brob")]
+fn decompress_from(reader: impl std::io::Read, limit: usize) -> Result<Vec<u8>> {
+    use std::io::Read;
+
+    let limit = u64::try_from(limit).unwrap_or(u64::MAX);
+    let mut out = Vec::new();
+    brotli_decompressor::Decompressor::new(reader, 4096)
+        .take(limit.saturating_add(1))
+        .read_to_end(&mut out)
+        .map_err(|_| Error::Malformed {
+            offset: 0,
+            reason: "invalid Brotli data in JPEG XL brob box",
+        })?;
+    if u64::try_from(out.len()).unwrap_or(u64::MAX) > limit {
+        return Err(Error::LimitExceeded(crate::limits::Limit::Alloc));
+    }
+    Ok(out)
+}
+
+/// A byte range of an [`Input`] as [`std::io::Read`].
+#[cfg(feature = "jxl-brob")]
+struct RangeReader<'a, I> {
+    input: &'a mut I,
+    at: u64,
+    end: u64,
+}
+
+#[cfg(feature = "jxl-brob")]
+impl<I: Input> std::io::Read for RangeReader<'_, I> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let left = usize::try_from(self.end.saturating_sub(self.at)).unwrap_or(usize::MAX);
+        let n = buf.len().min(left);
+        let Some(chunk) = buf.get_mut(..n).filter(|c| !c.is_empty()) else {
+            return Ok(0);
+        };
+        match self.input.read_at(self.at, chunk) {
+            Ok(true) => {
+                self.at = self.at.saturating_add(u64::try_from(n).unwrap_or(u64::MAX));
+                Ok(n)
+            }
+            Ok(false) => Err(std::io::ErrorKind::UnexpectedEof.into()),
+            Err(err) => Err(std::io::Error::other(err)),
+        }
+    }
+}
+
+/// [`decode_brob`] reading the compressed data from `range` of `input` as it
+/// decompresses, so the compressed box is never held in memory.
+#[cfg(feature = "jxl-brob")]
+pub(super) fn decode_brob_in(
+    input: &mut impl Input,
+    range: core::ops::Range<u64>,
+    limit: usize,
+) -> Result<Vec<u8>> {
+    let reader = RangeReader {
+        input,
+        at: range.start,
+        end: range.end,
+    };
+    tiff_of_payload(decompress_from(reader, limit)?)
 }
 
 #[cfg(test)]
@@ -471,6 +524,24 @@ mod tests {
             decode_brob(&compressed, 1 << 20),
             Err(Error::Unsupported { .. })
         ));
+    }
+
+    #[test]
+    #[cfg(feature = "jxl-brob")]
+    fn streamed_brotli_matches_in_memory() {
+        let data = [b"junk", BROTLI_EXIF, b"more"].concat();
+        let range = 4..4 + BROTLI_EXIF.len() as u64;
+        assert_eq!(
+            decode_brob_in(&mut Slice(&data), range.clone(), 1 << 20).unwrap(),
+            TIFF
+        );
+        // The output cap holds when streaming too.
+        assert!(matches!(
+            decode_brob_in(&mut Slice(&data), range, 8),
+            Err(Error::LimitExceeded(_))
+        ));
+        // A range past the input is an error, not a hang or a panic.
+        assert!(decode_brob_in(&mut Slice(&data), 4..1 << 40, 1 << 20).is_err());
     }
 
     #[test]

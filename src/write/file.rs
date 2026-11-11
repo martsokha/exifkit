@@ -46,7 +46,7 @@ impl Exif {
                 let payload = original
                     .get(at(range.start)..at(range.end).min(original.len()))
                     .unwrap_or_default();
-                own_block(Cow::Borrowed(payload), &located, original.len())
+                own_block(Cow::Borrowed(payload), located.encoding, original.len())
             }
             _ => None,
         };
@@ -64,10 +64,17 @@ impl Exif {
 
     /// Writes the metadata into the file read from `src`, writing the new
     /// file to `dst`. The result is the same as [`Exif::write_into_with`],
-    /// but JPEG, PNG and WebP files are streamed: only their headers, small
-    /// metadata chunks and the Exif block are read into memory, and the
-    /// image data is copied through in 64 KiB blocks. A TIFF file is its
-    /// own Exif block, so it is read whole.
+    /// but JPEG, PNG, WebP and JPEG XL files are streamed: only their
+    /// headers, small metadata chunks and the Exif block are read into
+    /// memory, and the image data is copied through in 64 KiB blocks.
+    ///
+    /// Memory use is bounded by the metadata, not the image: the file's own
+    /// Exif block (the writer's source) is read only if this build can
+    /// decode it, and at most 64 MiB of it; a Brotli-compressed JPEG XL
+    /// block is decompressed as it is read, with its output capped at the
+    /// same 64 MiB. The exception is TIFF and TIFF-based raw files: the file
+    /// is its own Exif block, and the writer needs all of it as the source,
+    /// so it is read whole.
     ///
     /// `dst` must not be the file `src` reads from. Write to a temporary
     /// file and rename it over the original, so a failure leaves the
@@ -102,23 +109,32 @@ impl Exif {
         let mut input = container::Stream(src);
         let mut diagnostics = crate::diagnostic::Diagnostics::default();
         let located = container::locate_in(&mut input, &mut diagnostics)?;
-        // The file's own block, read from the stream, is the source.
-        // Read only a block this build can decode, and (outside TIFF, whose
-        // block is the whole file) no more than a metadata block can be.
+        // The file's own block, read from the stream, is the source. Read
+        // only a block this build can decode, and (outside TIFF, whose block
+        // is the whole file) no more than a metadata block can be. A
+        // compressed block is decompressed as it is read, so only its
+        // capped output is ever held.
         let fits = |range: &core::ops::Range<u64>| {
             located.format == Format::Tiff
                 || range.end.saturating_sub(range.start)
                     <= u64::try_from(container::METADATA_LIMIT).unwrap_or(u64::MAX)
         };
+        let file_len = container::Input::len(&mut input)?
+            .and_then(|len| usize::try_from(len).ok())
+            .unwrap_or(usize::MAX);
         let own = match (&located.exif, options.source) {
+            #[cfg(feature = "jxl-brob")]
+            (Some(range), None) if located.encoding == container::Encoding::Brotli => {
+                let limit = metadata_limit(file_len);
+                container::decode_brob_in(&mut input, range.clone(), limit)
+                    .ok()
+                    .and_then(|tiff| {
+                        own_block(Cow::Owned(tiff), container::Encoding::Raw, file_len)
+                    })
+            }
             (Some(range), None) if container::decodable(located.encoding) && fits(range) => {
                 let payload = container::read_range(&mut input, range.clone())?;
-                let len = container::Input::len(&mut input)?.unwrap_or(range.end);
-                own_block(
-                    Cow::Owned(payload),
-                    &located,
-                    usize::try_from(len).unwrap_or(usize::MAX),
-                )
+                own_block(Cow::Owned(payload), located.encoding, file_len)
             }
             _ => None,
         };
@@ -158,18 +174,28 @@ fn keep_magic(original: &[u8], mut tiff: Vec<u8>) -> Vec<u8> {
 /// compressed JPEG XL `brob` box or a legacy PNG text chunk included), to
 /// serve as the writer's source. `None` if it cannot be decoded; the writer
 /// then works without a source.
-fn own_block<'a>(
-    payload: Cow<'a, [u8]>,
-    located: &container::Located,
+fn own_block(
+    payload: Cow<'_, [u8]>,
+    encoding: container::Encoding,
     file_len: usize,
-) -> Option<Cow<'a, [u8]>> {
-    let limit = crate::limits::Limits::DEFAULT
-        .alloc_budget(file_len)
-        .min(container::METADATA_LIMIT);
+) -> Option<Cow<'_, [u8]>> {
     let mut diagnostics = crate::diagnostic::Diagnostics::default();
-    container::tiff_payload(payload, located.encoding, limit, &mut diagnostics)
-        .ok()
-        .map(|(block, _)| block)
+    container::tiff_payload(
+        payload,
+        encoding,
+        metadata_limit(file_len),
+        &mut diagnostics,
+    )
+    .ok()
+    .map(|(block, _)| block)
+}
+
+/// The output cap for decoding the file's own block: the reader's default
+/// budget, but never more than [`container::METADATA_LIMIT`].
+fn metadata_limit(file_len: usize) -> usize {
+    crate::limits::Limits::DEFAULT
+        .alloc_budget(file_len)
+        .min(container::METADATA_LIMIT)
 }
 
 /// Removes the Exif data from a JPEG, PNG, WebP or JPEG XL file: the Exif
