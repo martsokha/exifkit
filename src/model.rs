@@ -15,17 +15,34 @@ use crate::tiff::{ByteOrder, DataError, Header, RawEntry, RawIfd, Reader};
 use crate::value::{FromValue, Value, ValueError};
 
 /// A tag and its value.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Equality compares the tag and value, not where the value sat in the
+/// source.
+#[derive(Debug, Clone)]
 pub struct Entry {
     tag: Tag,
     value: Value,
+    /// Offset of the value's data in the source block, if it was out of line.
+    pub(crate) source: Option<u32>,
 }
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool {
+        self.tag == other.tag && self.value == other.value
+    }
+}
+
+impl Eq for Entry {}
 
 impl Entry {
     /// Creates an entry.
     #[must_use]
     pub const fn new(tag: Tag, value: Value) -> Self {
-        Self { tag, value }
+        Self {
+            tag,
+            value,
+            source: None,
+        }
     }
 
     /// Returns the tag.
@@ -65,13 +82,28 @@ impl fmt::Display for Entry {
 ///
 /// Pointer tags (`ExifIFDPointer`, `SubIFDs`, …) are not entries: the model
 /// holds the IFDs they point to, and the writer recomputes them.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Equality compares content (kind, parent, entries, duplicates), not the
+/// offset the IFD was read from.
+#[derive(Debug, Clone)]
 pub struct Ifd {
     kind: IfdKind,
+    parent: Option<IfdKind>,
     offset: Option<u32>,
-    entries: Vec<Entry>,
+    pub(crate) entries: Vec<Entry>,
     duplicates: Vec<Entry>,
 }
+
+impl PartialEq for Ifd {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+            && self.parent == other.parent
+            && self.entries == other.entries
+            && self.duplicates == other.duplicates
+    }
+}
+
+impl Eq for Ifd {}
 
 impl Ifd {
     /// Creates an empty IFD.
@@ -79,6 +111,7 @@ impl Ifd {
     pub const fn new(kind: IfdKind) -> Self {
         Self {
             kind,
+            parent: default_parent(kind),
             offset: None,
             entries: Vec::new(),
             duplicates: Vec::new(),
@@ -95,6 +128,13 @@ impl Ifd {
     #[must_use]
     pub const fn namespace(&self) -> Namespace {
         namespace_of(self.kind)
+    }
+
+    /// Returns the IFD whose pointer tag leads here (`ExifIFDPointer`,
+    /// `SubIFDs`, …), or `None` for IFDs in the IFD0 chain.
+    #[must_use]
+    pub const fn parent(&self) -> Option<IfdKind> {
+        self.parent
     }
 
     /// Returns the TIFF-relative offset this IFD was read from, if any.
@@ -137,9 +177,65 @@ impl Ifd {
         self.entries.is_empty()
     }
 
+    /// Inserts an entry, replacing and returning any entry with the same tag.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidEntry`] if the tag belongs to another namespace (for
+    /// example a GPS tag in IFD0), or is one the writer computes itself:
+    /// IFD pointers, image-data offsets and lengths, and `OffsetSchema`.
+    pub fn insert(&mut self, entry: Entry) -> Result<Option<Entry>> {
+        let tag = entry.tag;
+        if tag.namespace() != self.namespace() {
+            return Err(Error::InvalidEntry {
+                tag,
+                reason: "tag belongs to another IFD's namespace",
+            });
+        }
+        if tag
+            .info()
+            .is_some_and(|info| info.role != Role::Value && info.role != Role::MakerNote)
+        {
+            return Err(Error::InvalidEntry {
+                tag,
+                reason: "tag is computed by the writer",
+            });
+        }
+        Ok(match self.entries.binary_search_by_key(&tag, |e| e.tag) {
+            Ok(i) => self
+                .entries
+                .get_mut(i)
+                .map(|slot| core::mem::replace(slot, entry)),
+            Err(i) => {
+                self.entries.insert(i, entry);
+                None
+            }
+        })
+    }
+
+    /// Removes and returns the entry for `tag`. Duplicates of the tag are
+    /// removed too.
+    pub fn remove(&mut self, tag: Tag) -> Option<Entry> {
+        self.duplicates.retain(|e| e.tag != tag);
+        let index = self.entries.binary_search_by_key(&tag, |e| e.tag).ok()?;
+        Some(self.entries.remove(index))
+    }
+
+    /// Drops the duplicate entries kept from the source. The writer does
+    /// this anyway, since a TIFF IFD holds each tag once.
+    pub fn clear_duplicates(&mut self) {
+        self.duplicates.clear();
+    }
+
+    /// Keeps only the entries for which `keep` returns `true`.
+    pub fn retain(&mut self, mut keep: impl FnMut(&Entry) -> bool) {
+        self.entries.retain(&mut keep);
+        self.duplicates.retain(keep);
+    }
+
     /// Sorts entries by tag id and moves repeated tags to `duplicates`,
     /// keeping the first occurrence. Returns the duplicated tags.
-    fn normalize(&mut self) -> Vec<Tag> {
+    pub(crate) fn normalize(&mut self) -> Vec<Tag> {
         self.entries.sort_by_key(|e| e.tag);
         let mut kept: Vec<Entry> = Vec::with_capacity(self.entries.len());
         let mut repeated = Vec::new();
@@ -156,7 +252,29 @@ impl Ifd {
     }
 }
 
-const fn namespace_of(kind: IfdKind) -> Namespace {
+/// A stable order for IFD kinds that are not SubIFDs.
+const fn rank_of(kind: IfdKind) -> u8 {
+    match kind {
+        IfdKind::Primary => 0,
+        IfdKind::Exif => 1,
+        IfdKind::Interop => 2,
+        IfdKind::Gps => 3,
+        IfdKind::Thumbnail => 4,
+        IfdKind::Chain(_) => 5,
+        IfdKind::SubIfd(_) => 6,
+    }
+}
+
+/// The parent an IFD of this kind normally has.
+const fn default_parent(kind: IfdKind) -> Option<IfdKind> {
+    match kind {
+        IfdKind::Primary | IfdKind::Thumbnail | IfdKind::Chain(_) => None,
+        IfdKind::Exif | IfdKind::Gps | IfdKind::SubIfd(_) => Some(IfdKind::Primary),
+        IfdKind::Interop => Some(IfdKind::Exif),
+    }
+}
+
+pub(crate) const fn namespace_of(kind: IfdKind) -> Namespace {
     match kind {
         IfdKind::Gps => Namespace::Gps,
         IfdKind::Interop => Namespace::Interop,
@@ -214,13 +332,46 @@ impl Default for ReadOptions {
 }
 
 /// Exif metadata: a tree of IFDs, a thumbnail and the MakerNote location.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Equality compares content: byte order, IFDs and thumbnail. Where things
+/// sat in the source (IFD offsets, the MakerNote offset, `OffsetSchema`) is
+/// layout, not content, and is ignored.
+#[derive(Debug, Clone)]
 pub struct Exif {
-    byte_order: ByteOrder,
-    ifds: Vec<Ifd>,
-    thumbnail: Option<Vec<u8>>,
-    maker_note_offset: Option<u32>,
+    pub(crate) byte_order: ByteOrder,
+    pub(crate) ifds: Vec<Ifd>,
+    pub(crate) thumbnail: Option<Vec<u8>>,
+    pub(crate) maker_note_offset: Option<u32>,
+    pub(crate) offset_schema: Option<i32>,
+    pub(crate) layout: Option<SourceLayout>,
 }
+
+/// What the reader learned about where things sat in the source block.
+///
+/// `free` lists the byte ranges the model fully accounts for (IFD tables,
+/// value data, the extracted thumbnail): the writer may reuse them. Every
+/// other byte (MakerNote data, image strips, vendor data referenced by
+/// offset, padding) is kept in place when writing with the source.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SourceLayout {
+    pub(crate) len: u32,
+    pub(crate) free: Vec<core::ops::Range<u32>>,
+    pub(crate) maker_note: Option<core::ops::Range<u32>>,
+    /// The IFD holding the MakerNote that `maker_note` and
+    /// [`Exif::maker_note_offset`] describe.
+    pub(crate) maker_note_ifd: Option<IfdKind>,
+    pub(crate) thumbnail: Option<u32>,
+}
+
+impl PartialEq for Exif {
+    fn eq(&self, other: &Self) -> bool {
+        self.byte_order == other.byte_order
+            && self.ifds == other.ifds
+            && self.thumbnail == other.thumbnail
+    }
+}
+
+impl Eq for Exif {}
 
 impl Default for Exif {
     fn default() -> Self {
@@ -237,6 +388,8 @@ impl Exif {
             ifds: Vec::new(),
             thumbnail: None,
             maker_note_offset: None,
+            offset_schema: None,
+            layout: None,
         }
     }
 
@@ -341,6 +494,82 @@ impl Exif {
     pub const fn maker_note_offset(&self) -> Option<u32> {
         self.maker_note_offset
     }
+
+    /// Returns the source's `OffsetSchema` (0xEA1D): how far an earlier
+    /// writer moved the MakerNote. The writer keeps it consistent.
+    #[must_use]
+    pub const fn offset_schema(&self) -> Option<i32> {
+        self.offset_schema
+    }
+
+    /// Sets the byte order used when writing.
+    pub fn set_byte_order(&mut self, order: ByteOrder) {
+        self.byte_order = order;
+    }
+
+    /// Returns the IFD of the given kind, creating it if it is missing.
+    pub fn ifd_mut(&mut self, kind: IfdKind) -> &mut Ifd {
+        let index = match self.ifds.binary_search_by_key(&kind, |ifd| ifd.kind) {
+            Ok(i) => i,
+            Err(i) => {
+                self.ifds.insert(i, Ifd::new(kind));
+                i
+            }
+        };
+        // The index was just found or inserted, so it is in bounds.
+        #[allow(clippy::indexing_slicing)]
+        &mut self.ifds[index]
+    }
+
+    /// Removes and returns the IFD of the given kind.
+    pub fn remove_ifd(&mut self, kind: IfdKind) -> Option<Ifd> {
+        let index = self.ifds.binary_search_by_key(&kind, |ifd| ifd.kind).ok()?;
+        Some(self.ifds.remove(index))
+    }
+
+    /// Inserts an entry into the IFD the spec places its tag in (IFD0 for
+    /// unknown tags of the main namespace), replacing any previous value.
+    ///
+    /// # Errors
+    ///
+    /// As [`Ifd::insert`].
+    pub fn insert(&mut self, entry: Entry) -> Result<Option<Entry>> {
+        let tag = entry.tag;
+        let kind = tag.info().map_or(
+            match tag.namespace() {
+                Namespace::Gps => IfdKind::Gps,
+                Namespace::Interop => IfdKind::Interop,
+                _ => IfdKind::Primary,
+            },
+            |info| info.ifd,
+        );
+        self.ifd_mut(kind).insert(entry)
+    }
+
+    /// Removes `tag` from every IFD of its namespace, returning the first
+    /// value found.
+    pub fn remove(&mut self, tag: Tag) -> Option<Entry> {
+        let mut removed = None;
+        for ifd in self
+            .ifds
+            .iter_mut()
+            .filter(|ifd| ifd.namespace() == tag.namespace())
+        {
+            let entry = ifd.remove(tag);
+            removed = removed.or(entry);
+        }
+        removed
+    }
+
+    /// Sets or removes the IFD1 JPEG thumbnail. Setting one creates IFD1 if
+    /// it is missing, since the thumbnail is referenced from there; removing
+    /// one leaves IFD1 and its other tags alone.
+    pub fn set_thumbnail(&mut self, jpeg: Option<Vec<u8>>) {
+        if jpeg.is_some() {
+            self.ifd_mut(IfdKind::Thumbnail);
+        }
+        self.thumbnail = jpeg;
+    }
 }
 
 /// In strict mode, turns the first error diagnostic into an [`Error`].
@@ -367,6 +596,7 @@ const MAX_BAD_ENTRIES: usize = 10;
 #[derive(Debug, Clone, Copy)]
 struct Task {
     kind: IfdKind,
+    parent: Option<IfdKind>,
     offset: u32,
     depth: u8,
 }
@@ -386,6 +616,16 @@ struct Walker<'a, 'o> {
     next_sub_ifd: u16,
     thumbnail: Option<Vec<u8>>,
     maker_note_offset: Option<u32>,
+    offset_schema: Option<i32>,
+    free: Vec<core::ops::Range<u32>>,
+    maker_note_range: Option<core::ops::Range<u32>>,
+    maker_note_ifd: Option<IfdKind>,
+    /// Each IFD's first out-of-line MakerNote: `(offset, length)`.
+    maker_note_candidates: BTreeMap<IfdKind, (u32, u32)>,
+    thumbnail_at: Option<u32>,
+    /// For each SubIFD number handed out: its parent and its index in the
+    /// parent's `SubIFDs` list. Used to renumber SubIFDs canonically.
+    sub_ifd_slots: BTreeMap<u16, (IfdKind, u16)>,
 }
 
 impl<'a, 'o> Walker<'a, 'o> {
@@ -403,12 +643,29 @@ impl<'a, 'o> Walker<'a, 'o> {
             next_sub_ifd: 0,
             thumbnail: None,
             maker_note_offset: None,
+            offset_schema: None,
+            free: Vec::new(),
+            maker_note_range: None,
+            maker_note_ifd: None,
+            maker_note_candidates: BTreeMap::new(),
+            thumbnail_at: None,
+            sub_ifd_slots: BTreeMap::new(),
+        }
+    }
+
+    /// Records a source range the model fully accounts for.
+    fn account(&mut self, start: u32, len: u32) {
+        let end = start.saturating_add(len);
+        let limit = u32::try_from(self.reader.len()).unwrap_or(u32::MAX);
+        if start < end && end <= limit {
+            self.free.push(start..end);
         }
     }
 
     fn run(mut self, ifd0: u32) -> (Exif, Diagnostics) {
         self.stack.push(Task {
             kind: IfdKind::Primary,
+            parent: None,
             offset: ifd0,
             depth: 0,
         });
@@ -418,13 +675,100 @@ impl<'a, 'o> Walker<'a, 'o> {
             }
             self.visit(task);
         }
+        self.renumber_sub_ifds();
+        self.choose_maker_note();
         let exif = Exif {
             byte_order: self.reader.byte_order(),
             ifds: self.ifds.into_values().collect(),
             thumbnail: self.thumbnail,
             maker_note_offset: self.maker_note_offset,
+            offset_schema: self.offset_schema,
+            layout: Some(SourceLayout {
+                len: u32::try_from(self.reader.len()).unwrap_or(u32::MAX),
+                free: merge(self.free),
+                maker_note: self.maker_note_range,
+                maker_note_ifd: self.maker_note_ifd,
+                thumbnail: self.thumbnail_at,
+            }),
         };
         (exif, self.diagnostics)
+    }
+
+    /// Renumbers SubIFDs densely, in tree order: by parent, then by index in
+    /// the parent's `SubIFDs` list. Numbers no longer depend on file layout
+    /// or on pointers that failed, so they survive a write and read back.
+    fn renumber_sub_ifds(&mut self) {
+        let path = |mut kind: IfdKind| {
+            // Parents always got their number before their children, so this
+            // walks strictly downwards; the bound is just a backstop.
+            let mut path = Vec::new();
+            for _ in 0..=u16::MAX {
+                let IfdKind::SubIfd(n) = kind else {
+                    let chain = if let IfdKind::Chain(n) = kind { n } else { 0 };
+                    path.push((rank_of(kind), chain));
+                    break;
+                };
+                let Some(&(parent, index)) = self.sub_ifd_slots.get(&n) else {
+                    break;
+                };
+                path.push((u8::MAX, index));
+                kind = parent;
+            }
+            path.reverse();
+            path
+        };
+        let mut subs: Vec<(Vec<(u8, u16)>, u16)> = self
+            .ifds
+            .keys()
+            .filter_map(|kind| match kind {
+                IfdKind::SubIfd(n) => Some((path(*kind), *n)),
+                _ => None,
+            })
+            .collect();
+        subs.sort();
+        let renumbered: BTreeMap<u16, u16> = subs
+            .iter()
+            .enumerate()
+            .filter_map(|(new, (_, old))| Some((*old, u16::try_from(new).ok()?)))
+            .collect();
+        let remap = |kind: IfdKind| match kind {
+            IfdKind::SubIfd(n) => renumbered.get(&n).map_or(kind, |&m| IfdKind::SubIfd(m)),
+            other => other,
+        };
+        let ifds = core::mem::take(&mut self.ifds);
+        for (kind, mut ifd) in ifds {
+            let kind = remap(kind);
+            ifd.kind = kind;
+            ifd.parent = ifd.parent.map(remap);
+            self.ifds.insert(kind, ifd);
+        }
+        // Everything else that names a SubIFD must follow.
+        let candidates = core::mem::take(&mut self.maker_note_candidates);
+        self.maker_note_candidates = candidates.into_iter().map(|(k, v)| (remap(k), v)).collect();
+    }
+
+    /// Picks the MakerNote the writer anchors: the Exif IFD's, else the one
+    /// in the first IFD in canonical order. The choice depends only on the
+    /// model, never on where IFDs sat in the file, so it survives a write.
+    fn choose_maker_note(&mut self) {
+        let order = |kind: &IfdKind| {
+            let inner = match *kind {
+                IfdKind::Chain(n) | IfdKind::SubIfd(n) => n,
+                _ => 0,
+            };
+            (u8::from(*kind != IfdKind::Exif), rank_of(*kind), inner)
+        };
+        let chosen = self
+            .maker_note_candidates
+            .iter()
+            .filter(|(kind, _)| self.ifds.contains_key(kind))
+            .min_by_key(|(kind, _)| order(kind))
+            .map(|(&kind, &(at, len))| (kind, at, len));
+        if let Some((kind, at, len)) = chosen {
+            self.maker_note_ifd = Some(kind);
+            self.maker_note_offset = Some(at);
+            self.maker_note_range = Some(at..at.saturating_add(len));
+        }
     }
 
     fn report(&mut self, diagnostic: Diagnostic) {
@@ -450,6 +794,7 @@ impl<'a, 'o> Walker<'a, 'o> {
     fn visit(&mut self, task: Task) {
         let Task {
             kind,
+            parent,
             offset,
             depth,
         } = task;
@@ -500,6 +845,10 @@ impl<'a, 'o> Walker<'a, 'o> {
             return;
         };
         self.visited.insert(offset, kind);
+        let table = 2u32
+            .saturating_add(12u32.saturating_mul(u32::from(raw.len())))
+            .saturating_add(4);
+        self.account(offset, table);
         if raw.is_truncated() {
             self.report(
                 Diagnostic::new(DiagnosticKind::Truncated)
@@ -509,6 +858,7 @@ impl<'a, 'o> Walker<'a, 'o> {
         }
 
         let mut ifd = Ifd::new(kind);
+        ifd.parent = parent;
         ifd.offset = Some(offset);
         let mut thumbnail = ThumbnailRefs::default();
         let mut previous: Option<u16> = None;
@@ -591,6 +941,7 @@ impl<'a, 'o> Walker<'a, 'o> {
         {
             self.stack.push(Task {
                 kind: next_kind,
+                parent: None,
                 offset: next,
                 depth,
             });
@@ -640,11 +991,36 @@ impl<'a, 'o> Walker<'a, 'o> {
                 return;
             }
         }
-        if tag == Tag::MAKER_NOTE && raw.byte_len().is_ok_and(|len| len > 4) {
-            self.maker_note_offset = raw.data_offset().ok();
+        // OffsetSchema is layout (how far the MakerNote moved), kept apart
+        // from content so the writer can keep it consistent.
+        // The model never holds tags the writer computes. A malformed
+        // OffsetSchema (not one SLONG) describes no valid move: it is
+        // reported and dropped, like a broken pointer.
+        if tag == Tag::OFFSET_SCHEMA {
+            match i32::from_value(&value) {
+                Ok(schema) => self.offset_schema = Some(schema),
+                Err(_) => self.check(kind, tag, &value, raw.count),
+            }
+            return;
+        }
+        // Each IFD's first out-of-line MakerNote (the one a duplicate check
+        // keeps) is a candidate; `choose_maker_note` picks one after the walk.
+        if tag == Tag::MAKER_NOTE
+            && !ifd.entries.iter().any(|e| e.tag == Tag::MAKER_NOTE)
+            && let Ok(len) = raw.byte_len()
+            && len > 4
+            && let Ok(at) = raw.data_offset()
+        {
+            self.maker_note_candidates.entry(kind).or_insert((at, len));
         }
         self.check(kind, tag, &value, raw.count);
-        ifd.entries.push(Entry::new(tag, value));
+        let mut entry = Entry::new(tag, value);
+        entry.source = raw
+            .byte_len()
+            .ok()
+            .filter(|&len| len > 4)
+            .and_then(|_| raw.data_offset().ok());
+        ifd.entries.push(entry);
     }
 
     /// Decodes an entry's value, reporting why when it cannot.
@@ -663,9 +1039,18 @@ impl<'a, 'o> Walker<'a, 'o> {
             });
         };
         match raw.data() {
-            Ok(data) => self
-                .charge(data.len(), kind)
-                .then(|| Value::decode(ty, data, self.reader.byte_order())),
+            Ok(data) => {
+                // Out-of-line value data is rewritten from the model, so its
+                // source range may be reused. The MakerNote is the exception.
+                if tag != Tag::MAKER_NOTE
+                    && let (Ok(len), Ok(at)) = (raw.byte_len(), raw.data_offset())
+                    && len > 4
+                {
+                    self.account(at, len);
+                }
+                self.charge(data.len(), kind)
+                    .then(|| Value::decode(ty, data, self.reader.byte_order()))
+            }
             Err(DataError::OutOfBounds { offset }) => {
                 self.report(
                     Diagnostic::new(DiagnosticKind::OutOfBounds)
@@ -749,8 +1134,18 @@ impl<'a, 'o> Walker<'a, 'o> {
                 let Some(next) = self.next_sub_ifd.checked_add(1) else {
                     break;
                 };
+                // Index among all of this parent's SubIFDs, across every
+                // SubIFDs tag it has (a duplicate tag adds a second list).
+                let index = self
+                    .sub_ifd_slots
+                    .values()
+                    .filter(|(parent, _)| *parent == kind)
+                    .count();
+                let index = u16::try_from(index).unwrap_or(u16::MAX);
+                self.sub_ifd_slots.insert(self.next_sub_ifd, (kind, index));
                 self.stack.push(Task {
                     kind: IfdKind::SubIfd(self.next_sub_ifd),
+                    parent: Some(kind),
                     offset,
                     depth,
                 });
@@ -765,8 +1160,12 @@ impl<'a, 'o> Walker<'a, 'o> {
                 );
             }
             if let Some(&offset) = offsets.first() {
+                // Exif, GPS and Interop IFDs have one canonical parent, which
+                // the writer uses; a pointer found elsewhere (a quirk) does
+                // not change that. Only SubIFDs hang off different IFDs.
                 self.stack.push(Task {
                     kind: target,
+                    parent: default_parent(target),
                     offset,
                     depth,
                 });
@@ -783,6 +1182,8 @@ impl<'a, 'o> Walker<'a, 'o> {
             if let Some(bytes) = self.reader.bytes(at, len) {
                 if self.charge(bytes.len(), ifd.kind) {
                     self.thumbnail = Some(bytes.to_vec());
+                    self.thumbnail_at = Some(at);
+                    self.account(at, len);
                 }
                 return;
             }
@@ -802,6 +1203,19 @@ impl<'a, 'o> Walker<'a, 'o> {
 struct ThumbnailRefs {
     offset: Option<(Option<u32>, Entry)>,
     length: Option<(Option<u32>, Entry)>,
+}
+
+/// Sorts and merges ranges.
+fn merge(mut ranges: Vec<core::ops::Range<u32>>) -> Vec<core::ops::Range<u32>> {
+    ranges.sort_by_key(|r| r.start);
+    let mut merged: Vec<core::ops::Range<u32>> = Vec::with_capacity(ranges.len());
+    for range in ranges {
+        match merged.last_mut() {
+            Some(last) if range.start <= last.end => last.end = last.end.max(range.end),
+            _ => merged.push(range),
+        }
+    }
+    merged
 }
 
 /// The kind of the IFD that follows `kind` in the IFD0 chain.

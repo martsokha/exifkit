@@ -1,6 +1,6 @@
 # Writing
 
-Status: draft
+Status: implemented (layout, MakerNote, thumbnail); draft (required tags, size limits)
 
 How `Exif` turns back into a TIFF block. This document covers the
 TIFF-level layout only. How the block is spliced into each image format
@@ -16,98 +16,132 @@ The encoder always produces a block that satisfies these:
 2. Every pointer and length tag the writer manages is recomputed:
    `ExifIFDPointer`, `GPSInfoIFDPointer`, `InteroperabilityIFDPointer`,
    `SubIFDs`, `JPEGInterchangeFormat`/`Length` and `OffsetSchema`.
-   Values the caller put in those tags are ignored. In debug builds
-   this is a `debug_assert`; in release builds it produces a diagnostic.
+   The model cannot hold them: `Ifd::insert` rejects them with
+   `Error::InvalidEntry`.
 3. Byte order stays the same as the source, unless the caller sets
    `WriteOptions::byte_order`.
 4. Values are written exactly as the model holds them. No numeric
    conversion happens on write.
 5. **Reading the output gives back an equal model** (`==`), apart from
-   the recomputed pointers. This is property-tested.
+   what cannot be written (see "What a round trip keeps"). This is
+   fuzzed, and checked on the whole corpus.
 
-## Layout modes
+## Layout
+
+Status: implemented (M2). The design first had two modes, Preserve and
+Compact. What we built is simpler and safer: one planner, and how much it
+keeps in place depends on whether it has the block the model was read
+from.
 
 ```rust
-#[non_exhaustive]
-pub enum Layout {
-    /// Default. Keep the original structure where possible; anchor the MakerNote.
-    Preserve,
-    /// Fresh, tightly packed layout (smallest output). Moves the MakerNote → OffsetSchema.
-    Compact,
-}
+let bytes = exif.to_tiff()?;                                   // no source: compact
+let bytes = exif.to_tiff_with(&WriteOptions::DEFAULT.source(&original))?; // minimal diff
 ```
 
-### Compact
-
-Write everything from scratch, in one pass in a fixed order. Each IFD's
-entry table is followed immediately by its out-of-line value data:
+The planner decides every offset before writing anything, so serializing
+is one forward pass and `encoded_len` is exact. An allocator places IFD
+tables and values in write order:
 
 ```
-header(8) → IFD0 entries → IFD0 data → Exif IFD → Exif data → [MakerNote]
-          → Interop IFD → GPS IFD → SubIFDs → IFD1 entries → IFD1 data → thumbnail
+header(8) → IFD0 → Exif → Interop → GPS → SubIFDs → IFD1 → IFD2… → thumbnail
 ```
 
-The planner works out every offset before anything is written: IFD
-sizes are known from entry counts and value sizes. So the serializer is
-one forward pass with no back-patching. The thumbnail goes last, so it
-is easy to drop when trying to fit inside JPEG's 64 KiB limit.
+It steps over **reserved ranges**, and everything below is a way of
+filling that list.
 
-### Preserve (default)
+### Without a source: compact
 
-The goal is to keep the MakerNote's absolute offset when the edit
-allows it, and to produce minimal diffs.
+Everything is packed in order. The MakerNote is still anchored at its
+original offset when the model knows it (see below). Image data the model
+only references by offset (strips, tiles, an unextracted thumbnail)
+cannot be relocated, so `to_tiff` returns `Error::Unsupported` and asks
+for the source.
 
-1. Start from the `SourceLayout` captured on read: the original offset
-   and length of every IFD, value blob, MakerNote and thumbnail.
-2. **Anchor the MakerNote** at its original TIFF-relative offset `M`.
-   Treat `[M, M+len)` as reserved space.
-3. Lay out everything else in compact order, skipping around the
-   reserved range. Data that fits before `M` goes there. The rest goes
-   after `M+len`. Any gap left before `M` is filled with zeros. The
-   `Padding` tag (0xEA1C) is **not** used for this, because it is a
-   Microsoft convention for a different purpose.
-4. If the other data cannot fit before `M` without overlapping it (for
-   example the caller added large tags), fall back to:
-   - (a) moving the MakerNote to the end, and
-   - (b) writing `OffsetSchema = new_offset − old_offset` (SLONG, in the
-     Exif IFD), and
-   - (c) reporting the diagnostic `MakerNoteMoved`.
+### With the source: minimal diff
 
-   If `WriteOptions::makernote = MakerNotePolicy::RequireAnchored`, the
-   writer returns an error instead.
+The reader records which bytes of the block the model fully accounts for:
+IFD tables, out-of-line values, and the extracted thumbnail. It also
+records each value's offset. When writing with that same block:
 
-If there was no source (a new `Exif` built from scratch), `Preserve`
-behaves the same as `Compact`.
+- **Bytes the model does not account for stay where they are.** That
+  covers MakerNote data, image strips and tiles, vendor data referenced
+  by offset (Sony `SR2Private`, a Nikon MakerNote embedded in
+  `DNGPrivateData`), and padding. They are copied from the source.
+- **Unchanged values stay at their original offsets.** Data that points
+  into them stays valid, even when we don't know it is a pointer.
+- **Only new and changed values, and IFD tables, use free space.** Free
+  space is the accounted ranges whose content is no longer there.
+- **Removed data does not leak.** Free space that nothing reuses is
+  written as zeros, so a removed description or GPS block is gone from
+  the output, not just unreferenced.
+
+If the source was not the block the model was read from (the length
+differs), only the image data the model references is kept in place.
+
+Verified: on 122 real files, after an edit that forces relocations (a
+320-byte `ImageDescription`), ExifTool reads every EXIF and MakerNotes
+tag exactly as in the original (`tests/corpus.rs`,
+`exiftool_sees_only_the_edit_in_rewritten_files`). That includes Canon,
+Nikon (including inside DNG), Sony, Olympus, Fujifilm, Pentax and
+Panasonic MakerNotes.
 
 ## MakerNote
 
 ```rust
-pub struct MakerNote {
-    data: Vec<u8>,
-    original_offset: Option<u32>,  // TIFF-relative, from read
-    vendor: Option<Vendor>,        // detected from header/Make, informational in v1
-}
-
 #[non_exhaustive]
 pub enum MakerNotePolicy {
-    Anchor,          // default: Preserve-mode behavior above
-    RequireAnchored, // error rather than move
-    Drop,            // remove the MakerNote entirely
+    Anchor,          // default: keep the original offset, else move + OffsetSchema
+    RequireAnchored, // keep the original offset, or fail
+    Move,            // pack it with everything else + OffsetSchema (smallest)
+    Drop,            // leave it out
 }
 ```
 
-How serious it is to move a MakerNote depends on the vendor:
+- **Which MakerNote.** The reader tracks one MakerNote: the first
+  out-of-line one, in the IFD it came from (normally the Exif IFD).
+  Other MakerNote entries, such as duplicates elsewhere, are ordinary
+  values.
+- **Anchoring.** The tracked MakerNote is reserved at its original offset
+  when the offset is past the header and doesn't collide with data kept
+  from the source. This works without the source too.
+- **`OffsetSchema` (0xEA1D, SLONG, Exif IFD)** is layout, not content.
+  The reader keeps it apart from the entries
+  (`Exif::offset_schema`), and the writer rewrites it:
+  - anchored: kept unchanged;
+  - moved: `previous + (new − original)`, so repeated moves accumulate;
+  - dropped, or no MakerNote out of line: omitted.
 
-| Kind                                    | Examples                                  | When moved                                      |
-|-----------------------------------------|-------------------------------------------|-------------------------------------------------|
-| Self-contained (own TIFF header / relative offsets) | Nikon type 3, Fujifilm, Panasonic, Apple, Olympus type 2 | Safe                       |
+How much a move hurts depends on the vendor:
+
+| Kind | Examples | When moved |
+|---|---|---|
+| Self-contained (own TIFF header or relative offsets) | Nikon type 3, Fujifilm, Panasonic, Apple, Olympus type 2 | Safe |
 | Offsets relative to the main TIFF header | Canon, Sony, Pentax, Nikon types 1/2, Olympus type 1 | Breaks, unless the reader honours `OffsetSchema` |
 
-In v1 we only *detect* the vendor, so we can report a severity: moving a
-safe vendor's MakerNote produces an informational diagnostic, moving any
-other produces a warning. Fixing up the internal offsets of the second
-group (as ExifTool does) is out of scope for v1, and noted in
-[`roadmap.md`](roadmap.md).
+Fixing up the internal offsets of the second group (as ExifTool does) is
+still out of scope; see [`roadmap.md`](roadmap.md).
+
+## What a round trip keeps
+
+Reading what was written gives an **equal model** (`==` compares content,
+not layout). Three things cannot be written, and are dropped:
+
+- **Entries of unknown type:** their size, and so their data, is unknown.
+- **Duplicate tags:** a TIFF IFD holds each tag once, so the first is
+  kept.
+- **Data references that already pointed outside the source** (strips,
+  tiles, an unextracted thumbnail), when writing with the source. Written
+  back unchanged, they would point at unrelated bytes in the output.
+
+The structure is canonical:
+- Exif and GPS hang off IFD0, and Interop hangs off Exif. Parents that
+  are needed but missing are created (an empty Exif IFD for an Interop
+  IFD, IFD1 for a thumbnail).
+- SubIFDs keep their parent, and are numbered by tree position, so the
+  numbering survives a round trip.
+- Writing what was read back gives the same bytes again.
+
+All of these properties are fuzzed by the `roundtrip` target.
 
 ## Thumbnail
 

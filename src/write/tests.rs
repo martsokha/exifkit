@@ -1,0 +1,378 @@
+//! Writer tests.
+
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
+
+use super::*;
+use crate::error::Error;
+use crate::ifd::IfdKind;
+use crate::model::Entry;
+use crate::model::tests_support::exif_with;
+use crate::tag::{Namespace, Tag};
+use crate::tiff::{Header, RawIfd, Reader};
+use crate::value::{Rational, Value};
+
+fn read(data: &[u8]) -> Exif {
+    let (exif, diagnostics) = Exif::from_tiff(data).expect("writer output is a valid TIFF block");
+    assert!(
+        diagnostics.is_empty(),
+        "writer output has diagnostics: {diagnostics:?}"
+    );
+    exif
+}
+
+fn camera() -> Exif {
+    let mut exif = exif_with(&[
+        (Tag::MAKE, Value::ascii("Canon")),
+        (Tag::ORIENTATION, Value::Short(vec![6])),
+        (
+            Tag::X_RESOLUTION,
+            Value::Rational(vec![Rational::new(72, 1)]),
+        ),
+        (
+            Tag::EXPOSURE_TIME,
+            Value::Rational(vec![Rational::new(1, 250)]),
+        ),
+        (Tag::EXIF_VERSION, Value::Undefined(b"0300".to_vec())),
+        (Tag::GPS_LATITUDE_REF, Value::ascii("N")),
+        (Tag::INTEROPERABILITY_INDEX, Value::ascii("R98")),
+    ]);
+    exif.set_thumbnail(Some(vec![0xFF, 0xD8, 1, 2, 3, 0xFF, 0xD9]));
+    exif
+}
+
+#[test]
+fn empty_model_is_a_valid_block() {
+    let bytes = Exif::new().to_tiff().unwrap();
+    assert_eq!(bytes.len(), Header::LEN + 6);
+    let exif = read(&bytes);
+    assert_eq!(exif.ifds().len(), 1);
+    assert_eq!(exif.ifds()[0].kind(), IfdKind::Primary);
+}
+
+#[test]
+fn round_trips_in_both_byte_orders() {
+    for order in [ByteOrder::LittleEndian, ByteOrder::BigEndian] {
+        let mut exif = camera();
+        exif.set_byte_order(order);
+        let bytes = exif.to_tiff().unwrap();
+        assert_eq!(
+            exif.encoded_len(&WriteOptions::DEFAULT).unwrap(),
+            bytes.len()
+        );
+        assert_eq!(read(&bytes), exif);
+        // Writing what was read gives the same bytes again.
+        assert_eq!(read(&bytes).to_tiff().unwrap(), bytes);
+    }
+}
+
+#[test]
+fn byte_order_can_be_changed_on_write() {
+    let exif = camera();
+    let options = WriteOptions::DEFAULT.byte_order(ByteOrder::BigEndian);
+    let back = read(&exif.to_tiff_with(&options).unwrap());
+    assert_eq!(back.byte_order(), ByteOrder::BigEndian);
+    assert_eq!(back.get::<u16>(Tag::ORIENTATION), Ok(Some(6)));
+}
+
+#[test]
+fn missing_parents_are_created() {
+    let exif = exif_with(&[(Tag::INTEROPERABILITY_INDEX, Value::ascii("R98"))]);
+    let back = read(&exif.to_tiff().unwrap());
+    let kinds: Vec<IfdKind> = back.ifds().iter().map(|i| i.kind()).collect();
+    assert_eq!(kinds, [IfdKind::Primary, IfdKind::Exif, IfdKind::Interop]);
+}
+
+#[test]
+fn tables_are_sorted_aligned_and_padded() {
+    let bytes = camera().to_tiff().unwrap();
+    let reader = Reader::new(&bytes, ByteOrder::LittleEndian);
+    let ifd0 = RawIfd::parse(reader, Header::parse(&bytes).unwrap().ifd0_offset).unwrap();
+    let ids: Vec<u16> = ifd0.entries().map(|e| e.tag).collect();
+    let mut sorted = ids.clone();
+    sorted.sort_unstable();
+    assert_eq!(ids, sorted);
+    assert_eq!(ifd0.offset() % 2, 0);
+    for entry in ifd0.entries() {
+        let len = entry.byte_len().unwrap();
+        if len > 4 {
+            assert_eq!(
+                entry.data_offset().unwrap() % 2,
+                0,
+                "tag {:#06x}",
+                entry.tag
+            );
+        } else {
+            let padding = &entry.field[usize::try_from(len).unwrap()..];
+            assert!(padding.iter().all(|&b| b == 0), "tag {:#06x}", entry.tag);
+        }
+    }
+}
+
+fn with_maker_note() -> (Exif, u32) {
+    let mut exif = camera();
+    exif.insert(Entry::new(
+        Tag::MAKER_NOTE,
+        Value::Undefined((0..40).collect()),
+    ))
+    .unwrap();
+    let options = WriteOptions::DEFAULT.maker_note(MakerNotePolicy::Move);
+    let back = read(&exif.to_tiff_with(&options).unwrap());
+    let original = back.maker_note_offset().expect("MakerNote is out of line");
+    (back, original)
+}
+
+#[test]
+fn maker_note_keeps_its_offset_when_tags_are_added() {
+    let (mut exif, original) = with_maker_note();
+    // Lots of new data before the MakerNote in write order.
+    exif.insert(Entry::new(
+        Tag::IMAGE_DESCRIPTION,
+        Value::ascii(&"x".repeat(300)),
+    ))
+    .unwrap();
+    let back = read(&exif.to_tiff().unwrap());
+    assert_eq!(back.maker_note_offset(), Some(original));
+    assert_eq!(back.offset_schema(), None);
+    assert_eq!(
+        back.get::<String>(Tag::IMAGE_DESCRIPTION)
+            .unwrap()
+            .unwrap()
+            .len(),
+        300
+    );
+    assert_eq!(back, exif);
+}
+
+#[test]
+fn moved_maker_note_records_offset_schema() {
+    let (mut exif, original) = with_maker_note();
+    exif.insert(Entry::new(
+        Tag::IMAGE_DESCRIPTION,
+        Value::ascii(&"x".repeat(300)),
+    ))
+    .unwrap();
+    let options = WriteOptions::DEFAULT.maker_note(MakerNotePolicy::Move);
+    let back = read(&exif.to_tiff_with(&options).unwrap());
+    let moved = back.maker_note_offset().unwrap();
+    assert_ne!(moved, original);
+    let distance = i64::from(moved) - i64::from(original);
+    assert_eq!(back.offset_schema().map(i64::from), Some(distance));
+
+    // Moving it again accumulates the schema.
+    let again = read(
+        &back
+            .to_tiff_with(&WriteOptions::DEFAULT.maker_note(MakerNotePolicy::Move))
+            .unwrap(),
+    );
+    let total = i64::from(again.maker_note_offset().unwrap()) - i64::from(original);
+    assert_eq!(again.offset_schema().map(i64::from), Some(total));
+}
+
+#[test]
+fn anchoring_falls_back_or_fails() {
+    let (mut exif, _) = with_maker_note();
+    exif.maker_note_offset = Some(4); // inside the header: cannot anchor there
+    let back = read(&exif.to_tiff().unwrap());
+    assert!(
+        back.offset_schema().is_some(),
+        "Anchor falls back to moving"
+    );
+    let required = WriteOptions::DEFAULT.maker_note(MakerNotePolicy::RequireAnchored);
+    assert!(matches!(
+        exif.to_tiff_with(&required),
+        Err(Error::Unsupported { .. })
+    ));
+    let dropped = WriteOptions::DEFAULT.maker_note(MakerNotePolicy::Drop);
+    let back = read(&exif.to_tiff_with(&dropped).unwrap());
+    assert!(back.entry(Tag::MAKER_NOTE).is_none());
+    assert_eq!(back.offset_schema(), None);
+}
+
+/// A TIFF with one 16-byte strip at offset 100, as a TIFF file has.
+fn tiff_with_strip() -> Vec<u8> {
+    let mut data = vec![0u8; 116];
+    data[..8].copy_from_slice(b"II*\0\x08\0\0\0");
+    let entries: [(u16, u16, u32, u32); 3] =
+        [(0x0100, 3, 1, 4), (0x0111, 4, 1, 100), (0x0117, 4, 1, 16)];
+    let mut ifd = vec![];
+    ifd.extend_from_slice(&3u16.to_le_bytes());
+    for (tag, ty, count, value) in entries {
+        ifd.extend_from_slice(&tag.to_le_bytes());
+        ifd.extend_from_slice(&ty.to_le_bytes());
+        ifd.extend_from_slice(&count.to_le_bytes());
+        ifd.extend_from_slice(&value.to_le_bytes());
+    }
+    ifd.extend_from_slice(&0u32.to_le_bytes());
+    data[8..8 + ifd.len()].copy_from_slice(&ifd);
+    for (i, byte) in data[100..116].iter_mut().enumerate() {
+        *byte = 0xA0 + u8::try_from(i).unwrap();
+    }
+    data
+}
+
+#[test]
+fn image_data_needs_the_source_and_stays_in_place() {
+    let source = tiff_with_strip();
+    let mut exif = read(&source);
+    assert!(matches!(exif.to_tiff(), Err(Error::Unsupported { .. })));
+
+    exif.insert(Entry::new(Tag::ARTIST, Value::ascii(&"y".repeat(200))))
+        .unwrap();
+    let out = exif
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&source))
+        .unwrap();
+    assert_eq!(&out[100..116], &source[100..116], "strip copied in place");
+    let back = read(&out);
+    assert_eq!(back, exif);
+    assert_eq!(back.get::<u32>(Tag::STRIP_OFFSETS), Ok(Some(100)));
+}
+
+#[test]
+fn unwritable_entries_are_dropped() {
+    let mut exif = camera();
+    exif.ifd_mut(IfdKind::Primary).entries.push(Entry::new(
+        Tag::new(Namespace::Main, 0xC000),
+        Value::Unknown {
+            type_id: 99,
+            count: 1,
+            field: [0; 4],
+        },
+    ));
+    exif.ifd_mut(IfdKind::Primary).normalize();
+    let back = read(&exif.to_tiff().unwrap());
+    assert!(back.entry(Tag::new(Namespace::Main, 0xC000)).is_none());
+    assert_eq!(back.get::<u16>(Tag::ORIENTATION), Ok(Some(6)));
+}
+
+#[test]
+fn thumbnail_round_trips_and_can_be_removed() {
+    let mut exif = camera();
+    let back = read(&exif.to_tiff().unwrap());
+    assert_eq!(back.thumbnail(), exif.thumbnail());
+    exif.set_thumbnail(None);
+    exif.remove_ifd(IfdKind::Thumbnail);
+    let back = read(&exif.to_tiff().unwrap());
+    assert!(back.thumbnail().is_none());
+    assert!(back.ifd(IfdKind::Thumbnail).is_none());
+}
+
+#[test]
+fn editing_rejects_managed_and_misplaced_tags() {
+    let mut exif = camera();
+    let pointer = Entry::new(Tag::EXIF_IFD_POINTER, Value::Long(vec![8]));
+    assert!(matches!(
+        exif.insert(pointer),
+        Err(Error::InvalidEntry { .. })
+    ));
+    let gps_in_ifd0 = Entry::new(Tag::GPS_LATITUDE_REF, Value::ascii("S"));
+    assert!(matches!(
+        exif.ifd_mut(IfdKind::Primary).insert(gps_in_ifd0),
+        Err(Error::InvalidEntry { .. })
+    ));
+    let replaced = exif
+        .insert(Entry::new(Tag::MAKE, Value::ascii("Nikon")))
+        .unwrap();
+    assert_eq!(
+        replaced.map(|e| e.into_value()),
+        Some(Value::ascii("Canon"))
+    );
+    assert!(exif.remove(Tag::MAKE).is_some());
+    assert!(exif.entry(Tag::MAKE).is_none());
+}
+
+#[test]
+fn offset_schema_is_kept_when_anchored() {
+    let (mut exif, _) = with_maker_note();
+    exif.offset_schema = Some(-12);
+    let back = read(&exif.to_tiff().unwrap());
+    assert_eq!(back.offset_schema(), Some(-12));
+}
+
+/// A block written once, so its values have known source offsets.
+fn written_camera() -> (Vec<u8>, Exif) {
+    let mut exif = camera();
+    exif.insert(Entry::new(
+        Tag::IMAGE_DESCRIPTION,
+        Value::ascii("SECRET-DESCRIPTION-0123456789"),
+    ))
+    .unwrap();
+    exif.insert(Entry::new(
+        Tag::GPS_LATITUDE,
+        Value::Rational(vec![
+            Rational::new(51, 1),
+            Rational::new(30, 1),
+            Rational::new(1234, 100),
+        ]),
+    ))
+    .unwrap();
+    let bytes = exif.to_tiff().unwrap();
+    let back = read(&bytes);
+    (bytes, back)
+}
+
+#[test]
+fn unchanged_values_keep_their_offsets() {
+    let (source, mut exif) = written_camera();
+    let before: Vec<(Tag, Option<u32>)> =
+        exif.entries().map(|(_, e)| (e.tag(), e.source)).collect();
+    // Change one out-of-line value and add another, forcing new allocations.
+    exif.insert(Entry::new(
+        Tag::MAKE,
+        Value::ascii("A much longer make than before"),
+    ))
+    .unwrap();
+    exif.insert(Entry::new(Tag::ARTIST, Value::ascii(&"z".repeat(64))))
+        .unwrap();
+    let out = exif
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&source))
+        .unwrap();
+    let after = read(&out);
+    for (tag, offset) in before {
+        if tag == Tag::MAKE || offset.is_none() {
+            continue;
+        }
+        let moved = after.entry(tag).and_then(|e| e.source);
+        assert_eq!(moved, offset, "{tag} moved");
+    }
+    assert_eq!(after, exif);
+}
+
+#[test]
+fn removed_values_do_not_leak_into_the_output() {
+    let (source, mut exif) = written_camera();
+    assert!(source.windows(6).any(|w| w == b"SECRET"));
+    exif.remove(Tag::IMAGE_DESCRIPTION);
+    exif.remove_ifd(IfdKind::Gps);
+    let out = exif
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&source))
+        .unwrap();
+    assert!(
+        !out.windows(6).any(|w| w == b"SECRET"),
+        "removed text survived"
+    );
+    let latitude = 1234u32.to_le_bytes();
+    assert!(
+        !out.windows(4).any(|w| w == latitude),
+        "removed GPS survived"
+    );
+    assert_eq!(read(&out), exif);
+}
+
+#[test]
+fn dangling_data_references_are_dropped_with_the_source() {
+    // A strip offset past the end of the source (found by fuzzing: written
+    // back unchanged it pointed at unrelated bytes of a larger output).
+    let mut source = tiff_with_strip();
+    source.truncate(100);
+    let (exif, _) = Exif::from_tiff(&source).unwrap();
+    assert!(exif.entry(Tag::STRIP_OFFSETS).is_some());
+    let out = exif
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&source))
+        .unwrap();
+    let back = read(&out);
+    assert!(back.entry(Tag::STRIP_OFFSETS).is_none());
+    assert!(back.entry(Tag::STRIP_BYTE_COUNTS).is_none());
+    assert_eq!(back.get::<u16>(Tag::IMAGE_WIDTH), Ok(Some(4)));
+}

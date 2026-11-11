@@ -12,6 +12,7 @@ cargo +nightly fuzz run tiff_parse -- -malloc_limit_mb=64 -max_total_time=600
 
 | Target        | Checks                                                     |
 |---------------|------------------------------------------------------------|
+| `roundtrip`   | Writing any readable block keeps every writable entry, `encoded_len` is exact, and rewriting is stable |
 | `read_any`    | `Exif::read` never panics on any file (JPEG, TIFF, PNG, WebP, legacy PNG text), and `read_from` agrees with it |
 | `tiff_parse`  | `Exif::from_tiff` and `Display` never panic; strict mode fails exactly when lenient mode reports an error |
 | `tiff_header` | `Header::parse` never panics and round-trips what it accepts |
@@ -23,4 +24,4 @@ tightly: AddressSanitizer's quarantine and shadow memory grow over a long
 run regardless of what exifkit allocates. When a run
 finds a crash, minimize it (`cargo fuzz tmin`) and commit the input as a
 regression test: every bug fix adds a fixture or a corpus entry
-(see `docs/roadmap.md`). The planned targets (`roundtrip`, `write_into`) arrive with the writer.
+(see `docs/roadmap.md`). The planned `write_into` target (whole files) arrives with the container writers.
