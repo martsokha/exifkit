@@ -72,10 +72,11 @@ impl fmt::Display for Format {
     }
 }
 
-/// Most bytes a decoded metadata block (compressed Exif or XMP, a PNG ICC
-/// profile) may inflate to. Fixed rather than scaled with the file, so a
-/// small compressed box in a large image cannot expand without bound.
-pub(crate) const METADATA_LIMIT: usize = 64 * 1024 * 1024;
+/// Most bytes a decoded metadata block may inflate to where no
+/// [`Limits`](crate::Limits) are passed in (`xmp`, `icc_profile`, sizing a
+/// JPEG XL Exif box): [`Limits::max_metadata`](crate::Limits::max_metadata)'s default.
+#[cfg(any(all(feature = "png", feature = "inflate"), feature = "jxl"))]
+pub(crate) const METADATA_LIMIT: usize = crate::limits::Limits::DEFAULT.max_metadata;
 
 /// Decodes a Brotli-compressed JPEG XL Exif payload straight from `range` of
 /// `input`: the compressed data is streamed into the decompressor, never held

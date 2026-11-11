@@ -116,6 +116,13 @@ impl Pieces {
 /// input holds fails before allocating it.
 pub(crate) fn read_range(input: &mut impl Input, range: Range<u64>) -> Result<Vec<u8>> {
     const STEP: u64 = 64 * 1024;
+    let len = range.end.saturating_sub(range.start);
+    if usize::try_from(len).is_err() {
+        return Err(Error::TooLarge {
+            size: usize::MAX,
+            max: usize::MAX,
+        });
+    }
     let mut out = Vec::new();
     let mut at = range.start;
     while at < range.end {
@@ -140,6 +147,12 @@ mod tests {
 
     #[test]
     fn read_range_reads_in_steps_and_refuses_past_the_end() {
+        // A length that cannot fit in memory is refused before any read.
+        #[cfg(target_pointer_width = "32")]
+        assert!(matches!(
+            read_range(&mut Slice(&[]), 0..u64::MAX),
+            Err(Error::TooLarge { .. })
+        ));
         let data: Vec<u8> = (0..200_000u32).map(|i| i as u8).collect();
         assert_eq!(
             read_range(&mut Slice(&data), 10..150_000).unwrap(),

@@ -376,3 +376,61 @@ fn dangling_data_references_are_dropped_with_the_source() {
     assert!(back.entry(Tag::STRIP_BYTE_COUNTS).is_none());
     assert_eq!(back.get::<u16>(Tag::IMAGE_WIDTH), Ok(Some(4)));
 }
+
+#[test]
+#[cfg(all(feature = "png", feature = "std"))]
+fn an_oversized_source_block_fails_on_both_paths() {
+    // A PNG whose eXIf chunk holds a TIFF block bigger than `max_metadata`.
+    let crc = |kind: &[u8], data: &[u8]| {
+        // CRC-32 (ISO 3309), bitwise.
+        let mut c = 0xFFFF_FFFFu32;
+        for &b in kind.iter().chain(data) {
+            c ^= u32::from(b);
+            for _ in 0..8 {
+                c = if c & 1 == 1 {
+                    0xEDB8_8320 ^ (c >> 1)
+                } else {
+                    c >> 1
+                };
+            }
+        }
+        !c
+    };
+    let chunk = |kind: &[u8; 4], data: &[u8]| {
+        let mut out = u32::try_from(data.len()).unwrap().to_be_bytes().to_vec();
+        out.extend_from_slice(kind);
+        out.extend_from_slice(data);
+        out.extend_from_slice(&crc(kind, data).to_be_bytes());
+        out
+    };
+    let mut tiff = b"II*\0\x08\0\0\0\0\0\0\0\0\0".to_vec();
+    tiff.resize(4096, 0);
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    png.extend(chunk(b"IHDR", &[0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 0, 0, 0]));
+    png.extend(chunk(b"eXIf", &tiff));
+    png.extend(chunk(b"IDAT", b"x"));
+    png.extend(chunk(b"IEND", b""));
+    let (exif, _) = Exif::read(&png).unwrap();
+    let tight = WriteOptions::DEFAULT.limits(crate::Limits {
+        max_metadata: 1024,
+        ..crate::Limits::DEFAULT
+    });
+    let limit = |r: crate::Result<()>| {
+        matches!(r, Err(crate::Error::LimitExceeded(crate::Limit::Metadata)))
+    };
+    assert!(limit(exif.write_into_with(&png, &tight).map(drop)));
+    assert!(limit(exif.write_stream(
+        std::io::Cursor::new(&png),
+        &mut Vec::new(),
+        &tight
+    )));
+    // Within the limit, both paths agree.
+    let mut streamed = Vec::new();
+    exif.write_stream(
+        std::io::Cursor::new(&png),
+        &mut streamed,
+        &WriteOptions::DEFAULT,
+    )
+    .unwrap();
+    assert_eq!(streamed, exif.write_into(&png).unwrap());
+}

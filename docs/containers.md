@@ -57,7 +57,7 @@ What we do differently from this design:
   the MPF segment, text-chunk keywords, the `VP8X` flags and the first
   bytes of a WebP bitstream are read. The file's own Exif block is read as
   the writer's source only if this build can decode it, at most 64 MiB of
-  it (`METADATA_LIMIT`), growing as bytes arrive rather than preallocated
+  it (`Limits::max_metadata`), growing as bytes arrive rather than preallocated
   from a length field. A `brob` block is decompressed straight from the
   stream, output capped at the same limit. TIFF is the exception: the file
   is its own Exif block and is read whole.

@@ -273,7 +273,7 @@ pub(super) fn decode_raw_profile(
         .and_then(|s| s.trim().parse().ok())
         .ok_or_else(|| malformed("malformed PNG raw profile length"))?;
     if len > limit {
-        return Err(Error::LimitExceeded(Limit::Alloc));
+        return Err(Error::LimitExceeded(Limit::Metadata));
     }
     let mut out = alloc::vec::Vec::with_capacity(len);
     let mut digits = hex.iter().filter(|b| !b.is_ascii_whitespace());
@@ -295,7 +295,7 @@ pub(super) fn decode_raw_profile(
 fn inflate(data: &[u8], limit: usize) -> Result<Vec<u8>> {
     miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(data, limit).map_err(|e| {
         if e.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput {
-            Error::LimitExceeded(crate::limits::Limit::Alloc)
+            Error::LimitExceeded(crate::limits::Limit::Metadata)
         } else {
             Error::Malformed {
                 offset: 0,

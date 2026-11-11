@@ -230,7 +230,10 @@ Checked against the published sources (little_exif 0.6.23, kamadak-exif
 - **rexif** reads the whole file, then bounds-checks before `try_reserve`.
 - **jxl-oxide** streams `brob` input, but found no output cap.
 
-exifkit: buffers grow as bytes arrive (`read_range`), decoded metadata is
-capped at 64 MiB (`METADATA_LIMIT`), `brob` is decompressed straight from
-the stream, and `write_stream` holds only metadata, except for TIFF, whose
-whole file is the writer's source.
+exifkit: buffers grow as bytes arrive (`read_range`, and `take` +
+`read_to_end` in `read_from`), decoded metadata is capped by
+`Limits::max_metadata` (64 MiB by default, configurable on both reading and
+writing), `brob` is decompressed straight from the stream on both paths,
+and `write_stream` holds only metadata. TIFF is still read whole by
+`read_from` and `write_stream`, as kamadak-exif does; bounding it is the
+next change.

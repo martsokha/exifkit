@@ -2,7 +2,7 @@
 
 use alloc::borrow::Cow;
 
-use crate::container::{self, Located, Slice};
+use crate::container::{self, Slice};
 use crate::diagnostic::Diagnostics;
 use crate::error::{Error, Result};
 use crate::model::{Exif, ReadOptions, check_strict};
@@ -37,8 +37,8 @@ impl Exif {
         let payload = data.get(start..end).unwrap_or_default();
         finish(
             Cow::Borrowed(payload),
-            &located,
-            range.start,
+            located.encoding,
+            Some(range.start),
             data.len(),
             options,
             diagnostics,
@@ -77,6 +77,25 @@ impl Exif {
         // Budget from the whole file, as `read_with` does, so both paths agree.
         let total = container::Input::len(&mut stream)?.unwrap_or(range.end);
         let file_len = usize::try_from(total).unwrap_or(usize::MAX);
+        // A payload this build cannot decode fails before any of it is read.
+        if !container::decodable(located.encoding) {
+            container::tiff_payload(Cow::Borrowed(&[]), located.encoding, 0, &mut diagnostics)?;
+        }
+        // A compressed JPEG XL block is decompressed straight from the
+        // stream, so the compressed box is never held whole.
+        #[cfg(feature = "jxl-brob")]
+        if located.encoding == container::Encoding::Brotli {
+            let limit = options.limits.metadata_budget(file_len);
+            let tiff = container::decode_brob_in(&mut stream, range, limit)?;
+            return finish(
+                Cow::Owned(tiff),
+                container::Encoding::Raw,
+                None,
+                file_len,
+                options,
+                diagnostics,
+            );
+        }
         let mut reader = stream.0;
         reader.seek(SeekFrom::Start(range.start))?;
         // `take` + `read_to_end` grows the buffer only as bytes arrive, so a
@@ -87,8 +106,8 @@ impl Exif {
             .read_to_end(&mut payload)?;
         finish(
             Cow::Owned(payload),
-            &located,
-            range.start,
+            located.encoding,
+            Some(range.start),
             file_len,
             options,
             diagnostics,
@@ -96,21 +115,23 @@ impl Exif {
     }
 }
 
+/// Decodes the payload and builds the model. `payload_start` is where the
+/// payload sits in the file, or `None` if it was already decoded (and so has
+/// no file position for diagnostics).
 fn finish(
     payload: Cow<'_, [u8]>,
-    located: &Located,
-    payload_start: u64,
+    encoding: container::Encoding,
+    payload_start: Option<u64>,
     file_len: usize,
     options: &ReadOptions,
     mut diagnostics: Diagnostics,
 ) -> Result<(Exif, Diagnostics)> {
-    let budget = options.limits.alloc_budget(file_len);
-    let (tiff, tiff_start) =
-        container::tiff_payload(payload, located.encoding, budget, &mut diagnostics)?;
+    let budget = options.limits.metadata_budget(file_len);
+    let (tiff, tiff_start) = container::tiff_payload(payload, encoding, budget, &mut diagnostics)?;
     let (exif, mut more) = Exif::from_tiff_lenient(&tiff, options)?;
     // IFD offsets are relative to the TIFF block; report them relative to the
     // file, like container offsets (decoded PNG text has no file position).
-    if let Some(start) = tiff_start {
+    if let (Some(payload_start), Some(start)) = (payload_start, tiff_start) {
         more.rebase(payload_start.saturating_add(start));
     }
     diagnostics.extend(more);
@@ -208,5 +229,53 @@ mod tests {
         assert!(diagnostics.contains(DiagnosticKind::TruncatedContainer));
         let strict = Exif::read_with(&data, &ReadOptions::DEFAULT.strict(true));
         assert!(matches!(strict, Err(Error::Malformed { .. })));
+    }
+
+    /// A JPEG XL container whose Exif is a `brob` box: `brotli -q 11` of a
+    /// zero offset and an empty little-endian TIFF block.
+    #[cfg(feature = "jxl")]
+    fn jxl_with_brob() -> Vec<u8> {
+        let mut out = b"\0\0\0\x0CJXL \r\n\x87\n\0\0\0\x14ftypjxl \0\0\0\0jxl ".to_vec();
+        let compressed: &[u8] = &[
+            0xa1, 0x88, 0x00, 0xc0, 0x3f, 0x0d, 0x90, 0xa4, 0x82, 0x30, 0x0c, 0x0a, 0x04, 0x80,
+            0xba, 0x01,
+        ];
+        out.extend_from_slice(&u32::try_from(12 + compressed.len()).unwrap().to_be_bytes());
+        out.extend_from_slice(b"brobExif");
+        out.extend_from_slice(compressed);
+        out.extend_from_slice(b"\0\0\0\x0Ajxlc\xFF\x0A");
+        out
+    }
+
+    #[test]
+    #[cfg(all(feature = "jxl-brob", feature = "std"))]
+    fn streamed_brotli_exif_reads_as_in_memory() {
+        let data = jxl_with_brob();
+        let (in_memory, _) = Exif::read(&data).unwrap();
+        let (streamed, _) = Exif::read_from(std::io::Cursor::new(&data)).unwrap();
+        assert_eq!(streamed, in_memory);
+        // `max_metadata` bounds the decompressed block on both paths.
+        let tight = ReadOptions::DEFAULT.limits(crate::Limits {
+            max_metadata: 8,
+            ..crate::Limits::DEFAULT
+        });
+        assert!(matches!(
+            Exif::read_with(&data, &tight),
+            Err(Error::LimitExceeded(_))
+        ));
+        assert!(matches!(
+            Exif::read_from_with(std::io::Cursor::new(&data), &tight),
+            Err(Error::LimitExceeded(_))
+        ));
+    }
+
+    #[test]
+    #[cfg(all(feature = "jxl", feature = "std", not(feature = "jxl-brob")))]
+    fn undecodable_exif_fails_before_reading_it() {
+        let data = jxl_with_brob();
+        assert!(matches!(
+            Exif::read_from(std::io::Cursor::new(&data)),
+            Err(Error::Unsupported { .. })
+        ));
     }
 }

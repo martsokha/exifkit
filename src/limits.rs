@@ -21,6 +21,12 @@ pub struct Limits {
     /// Maximum number of bytes allocated while building the model, or `None`
     /// to derive it from the input (4 × input length + 64 KiB).
     pub max_alloc: Option<usize>,
+    /// Maximum size of a decoded metadata block: decompressed Exif or XMP
+    /// (JPEG XL `brob`, legacy PNG text) and inflated PNG chunks, and the
+    /// file's own Exif block read as the writer's source. Fixed rather than
+    /// scaled with the file, so a small compressed box in a large image
+    /// cannot expand without bound. Default 64 MiB.
+    pub max_metadata: usize,
 }
 
 impl Limits {
@@ -31,7 +37,20 @@ impl Limits {
         max_entries: 4096,
         max_sub_ifds: 64,
         max_alloc: None,
+        max_metadata: 64 * 1024 * 1024,
     };
+
+    /// The cap for decoding a metadata block of a file of `input_len` bytes:
+    /// the allocation budget, but never more than [`Limits::max_metadata`].
+    #[must_use]
+    pub const fn metadata_budget(&self, input_len: usize) -> usize {
+        let budget = self.alloc_budget(input_len);
+        if budget < self.max_metadata {
+            budget
+        } else {
+            self.max_metadata
+        }
+    }
 
     /// Returns the allocation budget for an input of `input_len` bytes.
     #[must_use]
@@ -63,6 +82,8 @@ pub enum Limit {
     SubIfds,
     /// [`Limits::max_alloc`].
     Alloc,
+    /// [`Limits::max_metadata`].
+    Metadata,
 }
 
 impl fmt::Display for Limit {
@@ -73,6 +94,7 @@ impl fmt::Display for Limit {
             Self::Entries => "entries per ifd",
             Self::SubIfds => "sub-ifds per ifd",
             Self::Alloc => "allocation budget",
+            Self::Metadata => "metadata block size",
         })
     }
 }
@@ -80,6 +102,18 @@ impl fmt::Display for Limit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn metadata_budget_takes_the_smaller_cap() {
+        let limits = Limits::DEFAULT;
+        assert_eq!(limits.metadata_budget(0), 64 * 1024);
+        assert_eq!(limits.metadata_budget(usize::MAX), 64 * 1024 * 1024);
+        let tight = Limits {
+            max_metadata: 1000,
+            ..Limits::DEFAULT
+        };
+        assert_eq!(tight.metadata_budget(1 << 20), 1000);
+    }
 
     #[test]
     fn alloc_budget_saturates() {

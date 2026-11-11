@@ -298,11 +298,24 @@ impl Bits<'_> {
 fn payload_size(input: &mut impl Input, b: &BmffBox, kind: &Exif) -> Result<u64> {
     match kind {
         Exif::Plain => Ok(b.len()),
+        // Decompressed straight from the box, so only the capped output is
+        // ever held.
+        #[cfg(feature = "jxl-brob")]
         Exif::Brotli => {
-            let compressed =
-                super::pieces::read_range(input, b.data.start.saturating_add(4)..b.data.end)?;
-            let payload = decompress(&compressed, super::METADATA_LIMIT)?;
+            let reader = RangeReader {
+                input,
+                at: b.data.start.saturating_add(4),
+                end: b.data.end,
+            };
+            let payload = decompress_from(reader, super::METADATA_LIMIT)?;
             Ok(u64::try_from(payload.len()).unwrap_or(u64::MAX))
+        }
+        #[cfg(not(feature = "jxl-brob"))]
+        Exif::Brotli => {
+            let _ = input;
+            Err(Error::Unsupported {
+                what: "Brotli-compressed JPEG XL box (enable the `jxl-brob` feature)",
+            })
         }
     }
 }
@@ -390,7 +403,7 @@ fn decompress_from(reader: impl std::io::Read, limit: usize) -> Result<Vec<u8>> 
             reason: "invalid Brotli data in JPEG XL brob box",
         })?;
     if u64::try_from(out.len()).unwrap_or(u64::MAX) > limit {
-        return Err(Error::LimitExceeded(crate::limits::Limit::Alloc));
+        return Err(Error::LimitExceeded(crate::limits::Limit::Metadata));
     }
     Ok(out)
 }
