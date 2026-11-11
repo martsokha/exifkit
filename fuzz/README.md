@@ -7,7 +7,7 @@ affect the main build.
 ```bash
 cargo install cargo-fuzz
 cargo +nightly fuzz list
-cargo +nightly fuzz run tiff_parse -- -rss_limit_mb=256 -max_total_time=600
+cargo +nightly fuzz run tiff_parse -- -malloc_limit_mb=64 -max_total_time=600
 ```
 
 | Target        | Checks                                                     |
@@ -17,7 +17,10 @@ cargo +nightly fuzz run tiff_parse -- -rss_limit_mb=256 -max_total_time=600
 | `tiff_header` | `Header::parse` never panics and round-trips what it accepts |
 | `tag_lookup`  | Lookups by id and by name never panic and agree            |
 
-The memory cap (`-rss_limit_mb=256`) catches allocation-size bugs. When a run
+`-malloc_limit_mb=64` fails the run on any single allocation over 64 MB,
+which is how allocation-amplification bugs show up. Don't cap total RSS
+tightly: AddressSanitizer's quarantine and shadow memory grow over a long
+run regardless of what exifkit allocates. When a run
 finds a crash, minimize it (`cargo fuzz tmin`) and commit the input as a
 regression test: every bug fix adds a fixture or a corpus entry
 (see `docs/roadmap.md`). The planned targets (`roundtrip`, `write_into`) arrive with the writer.
