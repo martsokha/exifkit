@@ -29,9 +29,13 @@ What we do differently from this design:
 - **PNG:** CRCs are checked only for the chunk that carries Exif, which
   is a warning on mismatch. When an `eXIf` chunk and a legacy raw profile
   are both present, the `eXIf` chunk wins (`DuplicateExif`).
-- **TIFF streams:** `read_from` reads a TIFF file whole, because the
-  parse layer works on a slice. Seeking only to the IFDs is a later
-  optimisation.
+- **TIFF streams:** the TIFF parser reads through `tiff::Reader`, which is
+  backed by a slice (zero-copy) or by `Paged`, a stream read on demand
+  through a 1 MiB page cache. `read_from` walks a TIFF file in place,
+  reading only IFDs, values and the thumbnail, and charging the allocation
+  budget before each read. The writer's plan reads its source through the
+  same `Source` view and emits strips and tiles as copy ranges, so
+  `write_stream` never holds a TIFF's image data either.
 - **Writing TIFF** doesn't use a separate append strategy. A TIFF file is
   its own TIFF block, so the writer's minimal-diff layout (with the file
   as the source) keeps image data in place and only rewrites metadata.
@@ -59,8 +63,8 @@ What we do differently from this design:
   the writer's source only if this build can decode it, at most 64 MiB of
   it (`Limits::max_metadata`), growing as bytes arrive rather than preallocated
   from a length field. A `brob` block is decompressed straight from the
-  stream, output capped at the same limit. TIFF is the exception: the file
-  is its own Exif block and is read whole.
+  stream, output capped at the same limit. A TIFF file is its own Exif
+  block, read on demand (see "TIFF streams").
 - **Raw formats:** Olympus ORF (`IIRO`, `MMOR`, `IIRS`) and Panasonic RW2
   (`IIU\0`) are TIFF structures under their own magic number. They are
   detected as `Format::Tiff`, and `write_into` keeps the file's magic.

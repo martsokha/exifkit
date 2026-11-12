@@ -17,7 +17,10 @@ pub(crate) trait Input {
         not(any(feature = "jpeg", feature = "png", feature = "webp")),
         allow(dead_code)
     )]
-    fn array<const N: usize>(&mut self, offset: u64) -> Result<Option<[u8; N]>> {
+    fn array<const N: usize>(&mut self, offset: u64) -> Result<Option<[u8; N]>>
+    where
+        Self: Sized,
+    {
         let mut buf = [0u8; N];
         Ok(self.read_at(offset, &mut buf)?.then_some(buf))
     }

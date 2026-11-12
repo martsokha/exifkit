@@ -1,5 +1,6 @@
 //! Zero-copy parsing of one IFD.
 
+use alloc::borrow::Cow;
 use core::fmt;
 
 use super::{Reader, Type};
@@ -187,13 +188,14 @@ impl<'a> RawEntry<'a> {
         }
     }
 
-    /// Returns the value data, borrowed from the TIFF block.
+    /// Returns the value data: borrowed from a TIFF block in memory, or read
+    /// from a stream.
     ///
     /// # Errors
     ///
     /// Fails like [`RawEntry::byte_len`], or with
     /// [`DataError::OutOfBounds`] when the data is not inside the block.
-    pub fn data(&self) -> Result<&'a [u8], DataError> {
+    pub fn data(&self) -> Result<Cow<'a, [u8]>, DataError> {
         let len = self.byte_len()?;
         let offset = self.data_offset()?;
         self.reader
@@ -227,8 +229,8 @@ mod tests {
         assert_eq!(ifd.next(), None);
         let entries: alloc::vec::Vec<_> = ifd.entries().collect();
         assert_eq!(entries[0].tag, 0x0112);
-        assert_eq!(entries[0].data(), Ok(&[6, 0][..]));
-        assert_eq!(entries[1].data(), Ok(&b"Canon\0"[..]));
+        assert_eq!(entries[0].data().as_deref(), Ok(&[6, 0][..]));
+        assert_eq!(entries[1].data().as_deref(), Ok(&b"Canon\0"[..]));
     }
 
     #[test]

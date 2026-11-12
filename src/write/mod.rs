@@ -122,7 +122,7 @@ impl Exif {
     /// [`Error::Malformed`](crate::Error::Malformed) if offsets the model
     /// keeps point outside `options.source`.
     pub fn to_tiff_with(&self, options: &WriteOptions<'_>) -> Result<Vec<u8>> {
-        plan::Plan::new(self, options)?.serialize()
+        plan::Plan::new(self, options)?.serialize(options.source)
     }
 
     /// The exact size [`Exif::to_tiff_with`] would produce, without writing.

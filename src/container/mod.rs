@@ -24,6 +24,7 @@ mod jxl;
 )]
 mod pieces;
 
+pub(crate) use self::pieces::Pieces;
 #[cfg(feature = "std")]
 pub(crate) use self::pieces::read_range;
 #[cfg(feature = "png")]
@@ -377,7 +378,7 @@ pub fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
         #[cfg(feature = "jpeg")]
         Format::Jpeg => Ok(jpeg::xmp(data)?.map(Cow::Borrowed)),
         #[cfg(feature = "tiff")]
-        Format::Tiff => Ok(tiff_tag(data, 0x02BC).map(Cow::Borrowed)),
+        Format::Tiff => Ok(tiff_tag(data, 0x02BC)),
         #[cfg(feature = "png")]
         Format::Png => png::xmp(data),
         #[cfg(feature = "webp")]
@@ -406,7 +407,7 @@ pub fn icc_profile(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
         #[cfg(feature = "jpeg")]
         Format::Jpeg => Ok(jpeg::icc(data)?.map(Cow::Owned)),
         #[cfg(feature = "tiff")]
-        Format::Tiff => Ok(tiff_tag(data, 0x8773).map(Cow::Borrowed)),
+        Format::Tiff => Ok(tiff_tag(data, 0x8773)),
         #[cfg(feature = "png")]
         Format::Png => Ok(png::icc(data)?.map(Cow::Owned)),
         #[cfg(feature = "webp")]
@@ -432,7 +433,7 @@ fn unreadable(format: Format) -> Error {
 
 /// The bytes of a tag in IFD0 of a TIFF file.
 #[cfg(feature = "tiff")]
-fn tiff_tag(data: &[u8], tag: u16) -> Option<&[u8]> {
+fn tiff_tag(data: &[u8], tag: u16) -> Option<Cow<'_, [u8]>> {
     let header = crate::tiff::Header::parse(data).ok()?;
     let reader = crate::tiff::Reader::new(data, header.byte_order);
     let ifd0 = crate::tiff::RawIfd::parse(reader, header.ifd0_offset)?;

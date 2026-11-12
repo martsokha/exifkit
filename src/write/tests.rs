@@ -434,3 +434,80 @@ fn an_oversized_source_block_fails_on_both_paths() {
     .unwrap();
     assert_eq!(streamed, exif.write_into(&png).unwrap());
 }
+
+/// A `Read + Seek` that counts the bytes read through it.
+#[cfg(feature = "std")]
+struct Counting<'a> {
+    inner: std::io::Cursor<&'a [u8]>,
+    read: std::rc::Rc<core::cell::Cell<u64>>,
+}
+
+#[cfg(feature = "std")]
+impl std::io::Read for Counting<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.read.set(self.read.get() + n as u64);
+        Ok(n)
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::io::Seek for Counting<'_> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+#[test]
+#[cfg(all(feature = "tiff", feature = "std"))]
+fn tiff_streams_read_metadata_not_image_data() {
+    // IFD0 { ImageWidth, StripOffsets, StripByteCounts, Make } with an 8 MB
+    // strip after it.
+    const STRIP: u32 = 8 << 20;
+    let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+    let strip_at: u32 = 8 + 2 + 4 * 12 + 4 + 8;
+    tiff.extend_from_slice(&4u16.to_le_bytes());
+    for (tag, ty, count, value) in [
+        (0x0100u16, 4u16, 1u32, 64u32),
+        (0x010F, 2, 6, strip_at - 8),
+        (0x0111, 4, 1, strip_at),
+        (0x0117, 4, 1, STRIP),
+    ] {
+        tiff.extend_from_slice(&tag.to_le_bytes());
+        tiff.extend_from_slice(&ty.to_le_bytes());
+        tiff.extend_from_slice(&count.to_le_bytes());
+        tiff.extend_from_slice(&value.to_le_bytes());
+    }
+    tiff.extend_from_slice(&0u32.to_le_bytes());
+    tiff.extend_from_slice(b"Canon\0\0\0");
+    tiff.extend((0..STRIP).map(|i| i as u8));
+    let counter = std::rc::Rc::new(core::cell::Cell::new(0));
+    let stream = || Counting {
+        inner: std::io::Cursor::new(&tiff),
+        read: counter.clone(),
+    };
+
+    let (exif, _) = Exif::read_from(stream()).unwrap();
+    assert!(
+        counter.get() < 64 * 1024,
+        "read_from read {} bytes",
+        counter.get()
+    );
+    assert_eq!(exif, Exif::read(&tiff).unwrap().0);
+
+    let mut edited = exif.clone();
+    edited.set(Tag::ARTIST, "exifkit").unwrap();
+    counter.set(0);
+    let mut streamed = Vec::new();
+    edited
+        .write_stream(stream(), &mut streamed, &WriteOptions::DEFAULT)
+        .unwrap();
+    // The strip is read once, to copy it through; the plan reads only
+    // metadata.
+    assert!(
+        counter.get() < u64::from(STRIP) + 128 * 1024,
+        "write_stream read {} bytes",
+        counter.get()
+    );
+    assert_eq!(streamed, edited.write_into(&tiff).unwrap());
+}

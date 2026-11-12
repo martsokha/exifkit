@@ -234,6 +234,6 @@ exifkit: buffers grow as bytes arrive (`read_range`, and `take` +
 `read_to_end` in `read_from`), decoded metadata is capped by
 `Limits::max_metadata` (64 MiB by default, configurable on both reading and
 writing), `brob` is decompressed straight from the stream on both paths,
-and `write_stream` holds only metadata. TIFF is still read whole by
-`read_from` and `write_stream`, as kamadak-exif does; bounding it is the
-next change.
+and `write_stream` holds only metadata. TIFF files are walked in place on
+both paths (IFDs and values read on demand, strips copied by range), where
+kamadak-exif reads TIFF input to the end.

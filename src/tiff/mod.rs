@@ -10,6 +10,7 @@ mod reader;
 use core::fmt;
 
 pub use self::ifd::{DataError, RawEntry, RawIfd};
+pub(crate) use self::reader::Paged;
 pub use self::reader::Reader;
 use crate::error::{Error, Result};
 

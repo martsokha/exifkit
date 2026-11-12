@@ -46,7 +46,9 @@ impl Exif {
     }
 
     /// Reads the Exif metadata of an image file from a stream, reading only
-    /// the parts that hold metadata (TIFF files are read whole).
+    /// the parts that hold metadata. A TIFF or TIFF-based raw file is walked
+    /// in place: its IFDs, values and thumbnail are read on demand (through
+    /// a small page cache), never its image data.
     ///
     /// # Errors
     ///
@@ -77,6 +79,20 @@ impl Exif {
         // Budget from the whole file, as `read_with` does, so both paths agree.
         let total = container::Input::len(&mut stream)?.unwrap_or(range.end);
         let file_len = usize::try_from(total).unwrap_or(usize::MAX);
+        // A TIFF file is its own TIFF block: walk it in place, reading only
+        // the IFDs, values and thumbnail, never the image data.
+        if located.format == container::Format::Tiff {
+            let paged = crate::tiff::Paged::new(&mut stream, total);
+            let header = crate::tiff::Header::parse(&paged.header()?)?;
+            let reader = crate::tiff::Reader::paged(&paged, header.byte_order);
+            let (exif, more) = Exif::from_reader(reader, header.ifd0_offset, options);
+            if let Some(err) = paged.take_error() {
+                return Err(err);
+            }
+            diagnostics.extend(more);
+            check_strict(&diagnostics, options)?;
+            return Ok((exif, diagnostics));
+        }
         // A payload this build cannot decode fails before any of it is read.
         if !container::decodable(located.encoding) {
             container::tiff_payload(Cow::Borrowed(&[]), located.encoding, 0, &mut diagnostics)?;

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- TIFF and TIFF-based raw files are streamed: `read_from` reads only their
+  IFDs, values and thumbnail (through a small page cache), and `write_stream`
+  copies their strips and tiles through without holding them. The allocation
+  budget is charged before each value is read.
+
 - JPEG XL: reading and writing the `Exif` box, including Brotli-compressed
   `brob` boxes (feature `jxl-brob`, which now needs `std`), XMP from the `xml `
   box, and `remove_exif`. A bare codestream is wrapped in a container to carry
@@ -50,6 +55,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - every sample written back reads as the same model;
   - bytes outside the Exif data are unchanged;
   - `exiftool -validate` reports no new warnings after an edit.
+
+### Changed
+
+- `tiff::Reader::bytes`, `RawEntry::data` return `Cow<[u8]>` (borrowed for a
+  block in memory), so the reader can also read on demand from a stream.
 
 ### Fixed
 
