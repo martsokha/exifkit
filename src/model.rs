@@ -1054,12 +1054,24 @@ impl<'a, 'o> Walker<'a, 'o> {
             && u64::from(at).saturating_add(u64::from(len))
                 <= u64::try_from(self.reader.len()).unwrap_or(u64::MAX)
         {
+            // One value is never bigger than a metadata block may be, however
+            // large the file (and so the budget) is.
+            let size = usize::try_from(len).unwrap_or(usize::MAX);
+            if size > self.options.limits.max_metadata {
+                self.report(
+                    Diagnostic::new(DiagnosticKind::LimitExceeded(Limit::Metadata))
+                        .in_ifd(kind)
+                        .for_tag(tag)
+                        .at(raw.offset()),
+                );
+                return None;
+            }
             // Out-of-line value data is rewritten from the model, so its
             // source range may be reused. The MakerNote is the exception.
             if tag != Tag::MAKER_NOTE && len > 4 {
                 self.account(at, len);
             }
-            if !self.charge(usize::try_from(len).unwrap_or(usize::MAX), kind) {
+            if !self.charge(size, kind) {
                 return None;
             }
         }
@@ -1203,22 +1215,29 @@ impl<'a, 'o> Walker<'a, 'o> {
             // Bounds and budget first, so a stream reads only what fits.
             let in_bounds = u64::from(at).saturating_add(u64::from(len))
                 <= u64::try_from(self.reader.len()).unwrap_or(u64::MAX);
-            if in_bounds {
-                if !self.charge(usize::try_from(len).unwrap_or(usize::MAX), ifd.kind) {
-                    return;
-                }
-                if let Some(bytes) = self.reader.bytes(at, len) {
+            let size = usize::try_from(len).unwrap_or(usize::MAX);
+            if in_bounds && size > self.options.limits.max_metadata {
+                // Bigger than any metadata block may be: keep the references.
+                self.report(
+                    Diagnostic::new(DiagnosticKind::LimitExceeded(Limit::Metadata))
+                        .in_ifd(ifd.kind)
+                        .at(at),
+                );
+            } else if in_bounds && !self.charge(size, ifd.kind) {
+                // Out of budget (already reported): keep the references.
+            } else {
+                if in_bounds && let Some(bytes) = self.reader.bytes(at, len) {
                     self.thumbnail = Some(bytes.into_owned());
                     self.thumbnail_at = Some(at);
                     self.account(at, len);
                     return;
                 }
+                self.report(
+                    Diagnostic::new(DiagnosticKind::InvalidThumbnail)
+                        .in_ifd(ifd.kind)
+                        .at(at),
+                );
             }
-            self.report(
-                Diagnostic::new(DiagnosticKind::InvalidThumbnail)
-                    .in_ifd(ifd.kind)
-                    .at(at),
-            );
         }
         ifd.entries.extend(offset.map(|(_, e)| e));
         ifd.entries.extend(length.map(|(_, e)| e));

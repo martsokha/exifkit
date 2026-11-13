@@ -292,6 +292,60 @@ fn thumbnail_is_extracted() {
 }
 
 #[test]
+fn thumbnail_over_a_limit_keeps_its_tags() {
+    // Found in review: when the thumbnail cannot be taken for budget or size
+    // reasons, its reference tags must stay, as for a bad thumbnail.
+    let mut t = Tiff::new();
+    let jpeg = t.blob(&[0xFF, 0xD8, 0, 0, 0, 0, 0xFF, 0xD9]);
+    let ifd1 = t.ifd(&[(0x0201, LONG, 1, jpeg), (0x0202, LONG, 1, 8)], 0);
+    let ifd0 = t.ifd(&[(0x0112, SHORT, 1, 1)], ifd1);
+    let data = t.root(ifd0);
+    for limits in [
+        // Enough for IFD0 and IFD1's entries, not the 4-byte thumbnail.
+        Limits {
+            // Three entries (each charged its size) and their values
+            // (Orientation 2, the two references 4 + 4): nothing left over.
+            max_alloc: Some(3 * core::mem::size_of::<Entry>() + 2 + 4 + 4),
+            ..Limits::DEFAULT
+        },
+        // The references (4 bytes each) fit, the 8-byte thumbnail does not.
+        Limits {
+            max_metadata: 4,
+            ..Limits::DEFAULT
+        },
+    ] {
+        let options = ReadOptions::DEFAULT.limits(limits);
+        let (exif, diagnostics) = Exif::from_tiff_with(&data, &options).unwrap();
+        assert_eq!(exif.thumbnail(), None);
+        let ifd1 = exif.ifd(IfdKind::Thumbnail).unwrap();
+        assert!(
+            ifd1.get(Tag::JPEG_INTERCHANGE_FORMAT).is_some(),
+            "{limits:?}"
+        );
+        assert!(ifd1.get(Tag::JPEG_INTERCHANGE_FORMAT_LENGTH).is_some());
+        assert!(!diagnostics.contains(DiagnosticKind::InvalidThumbnail));
+    }
+}
+
+#[test]
+fn a_value_over_max_metadata_is_skipped_before_it_is_read() {
+    let mut t = Tiff::new();
+    let blob = t.blob(&[7; 64]);
+    let ifd0 = t.ifd(&[(0x9286, UNDEFINED, 64, blob), (0x0112, SHORT, 1, 1)], 0);
+    let options = ReadOptions::DEFAULT.limits(Limits {
+        max_metadata: 32,
+        ..Limits::DEFAULT
+    });
+    let (exif, diagnostics) = Exif::from_tiff_with(&t.root(ifd0), &options).unwrap();
+    assert!(exif.entry(Tag::USER_COMMENT).is_none());
+    assert!(
+        exif.entry(Tag::ORIENTATION).is_some(),
+        "the rest is still read"
+    );
+    assert!(diagnostics.contains(DiagnosticKind::LimitExceeded(Limit::Metadata)));
+}
+
+#[test]
 fn bad_thumbnail_keeps_its_tags() {
     let mut t = Tiff::new();
     let ifd1 = t.ifd(&[(0x0201, LONG, 1, 5000), (0x0202, LONG, 1, 4)], 0);

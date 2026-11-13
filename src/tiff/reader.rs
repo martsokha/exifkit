@@ -218,9 +218,16 @@ impl<'a> Paged<'a> {
     }
 
     /// Reads the TIFF header at the start of the block.
+    ///
+    /// # Errors
+    ///
+    /// The I/O error, if reading failed; [`Error::InvalidHeader`] if the
+    /// block is shorter than a header.
     pub(crate) fn header(&self) -> Result<[u8; 8]> {
-        let bytes = self.get(0, 8).ok_or(Error::InvalidHeader)?;
-        bytes.try_into().map_err(|_| Error::InvalidHeader)
+        match self.get(0, 8) {
+            Some(bytes) => bytes.try_into().map_err(|_| Error::InvalidHeader),
+            None => Err(self.take_error().unwrap_or(Error::InvalidHeader)),
+        }
     }
 }
 
@@ -238,6 +245,33 @@ mod tests {
         assert_eq!(r.u32(1), None);
         assert_eq!(r.bytes(u32::MAX, u32::MAX), None);
         assert_eq!(r.bytes(4, 0).as_deref(), Some(&[][..]));
+    }
+
+    /// An input whose reads fail.
+    struct Broken;
+
+    impl Input for Broken {
+        fn read_at(&mut self, _: u64, _: &mut [u8]) -> Result<bool> {
+            Err(Error::Unsupported {
+                what: "broken input",
+            })
+        }
+
+        fn len(&mut self) -> Result<Option<u64>> {
+            Ok(Some(100))
+        }
+    }
+
+    #[test]
+    fn a_failed_header_read_reports_the_failure() {
+        // Found in review: not `InvalidHeader`, which would hide it.
+        let mut input = Broken;
+        let paged = Paged::new(&mut input, 100);
+        assert!(matches!(paged.header(), Err(Error::Unsupported { .. })));
+        // A block shorter than a header is still `InvalidHeader`.
+        let mut short = Slice(&[b'I', b'I', 42, 0]);
+        let paged = Paged::new(&mut short, 4);
+        assert!(matches!(paged.header(), Err(Error::InvalidHeader)));
     }
 
     #[test]

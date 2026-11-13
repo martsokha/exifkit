@@ -639,9 +639,20 @@ impl<'a> Plan<'a> {
 
     /// Writes `magic` in the header instead of 42: a raw format (ORF, RW2)
     /// rewritten in place keeps its own.
-    pub(crate) const fn with_magic(mut self, magic: u16) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Unsupported`] if the output byte order cannot carry it
+    /// (RW2 and ORF `IIRS` are little-endian only): such a header would be
+    /// unreadable, and writing 42 would silently change the format.
+    pub(crate) fn with_magic(mut self, magic: u16) -> Result<Self> {
+        if !Header::is_known(self.order, magic) {
+            return Err(Error::Unsupported {
+                what: "this raw format in the requested byte order (RW2 and ORF `IIRS` are little-endian only)",
+            });
+        }
         self.magic = magic;
-        self
+        Ok(self)
     }
 
     pub(super) fn len(&self) -> usize {

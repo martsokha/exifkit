@@ -73,7 +73,7 @@ impl Exif {
                 let magic = crate::tiff::Header::parse(original)
                     .map_or(crate::tiff::Header::TIFF, |h| h.magic);
                 super::plan::Plan::new(self, &options)?
-                    .with_magic(magic)
+                    .with_magic(magic)?
                     .serialize(options.source)
             }
             format => container::splice(original, format, Some(&self.to_tiff_with(&options)?)),
@@ -137,7 +137,7 @@ impl Exif {
                 let paged = crate::tiff::Paged::new(&mut input, len);
                 let header = crate::tiff::Header::parse(&paged.header()?)?;
                 let plan = super::plan::Plan::with_source(self, options, Some(&paged))?
-                    .with_magic(header.magic);
+                    .with_magic(header.magic)?;
                 if let Some(err) = paged.take_error() {
                     return Err(err);
                 }
@@ -208,7 +208,7 @@ impl Exif {
                 crate::tiff::Header::TIFF
             };
             let tiff = super::plan::Plan::new(self, &options)?
-                .with_magic(magic)
+                .with_magic(magic)?
                 .serialize(options.source)?;
             dst.write_all(&tiff)?;
             return Ok(());

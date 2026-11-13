@@ -445,7 +445,7 @@ struct Counting<'a> {
 #[cfg(feature = "std")]
 impl std::io::Read for Counting<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let n = self.inner.read(buf)?;
+        let n = std::io::Read::read(&mut self.inner, buf)?;
         self.read.set(self.read.get() + n as u64);
         Ok(n)
     }
@@ -454,7 +454,7 @@ impl std::io::Read for Counting<'_> {
 #[cfg(feature = "std")]
 impl std::io::Seek for Counting<'_> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        self.inner.seek(pos)
+        std::io::Seek::seek(&mut self.inner, pos)
     }
 }
 
@@ -510,4 +510,28 @@ fn tiff_streams_read_metadata_not_image_data() {
         counter.get()
     );
     assert_eq!(streamed, edited.write_into(&tiff).unwrap());
+}
+
+#[test]
+fn raw_magic_needs_a_byte_order_that_can_carry_it() {
+    // Found in review: RW2 and ORF `IIRS` exist only little-endian, so
+    // writing them big-endian would give a header no reader recognizes.
+    let mut tiff = b"IIU\0\x08\0\0\0\x01\0".to_vec();
+    tiff.extend_from_slice(&[0x12, 0x01, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0]);
+    tiff.extend_from_slice(&[0; 4]);
+    let (exif, _) = Exif::read(&tiff).unwrap();
+    let out = exif.write_into(&tiff).unwrap();
+    assert_eq!(&out[..4], b"IIU\0");
+    let big_endian = WriteOptions::DEFAULT.byte_order(crate::tiff::ByteOrder::BigEndian);
+    assert!(matches!(
+        exif.write_into_with(&tiff, &big_endian),
+        Err(Error::Unsupported { .. })
+    ));
+    // ORF has a big-endian form, so it converts.
+    let mut orf = tiff.clone();
+    orf[2..4].copy_from_slice(b"RO");
+    let (exif, _) = Exif::read(&orf).unwrap();
+    let out = exif.write_into_with(&orf, &big_endian).unwrap();
+    assert_eq!(&out[..4], b"MMOR");
+    assert_eq!(Exif::read(&out).unwrap().0.entries().count(), 1);
 }

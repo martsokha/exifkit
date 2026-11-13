@@ -12,7 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TIFF and TIFF-based raw files are streamed: `read_from` reads only their
   IFDs, values and thumbnail (through a small page cache), and `write_stream`
   copies their strips and tiles through without holding them. The allocation
-  budget is charged before each value is read.
+  budget is charged before each value is read, and `Limits::max_metadata` caps
+  any single value or thumbnail, so one bogus entry in a large file cannot
+  make memory use grow with the file.
+- `tiff::Header::is_known`. Writing a raw format in a byte order it does not
+  have (RW2 and ORF `IIRS` are little-endian only) is now `Error::Unsupported`
+  rather than an unreadable header.
 
 - JPEG XL: reading and writing the `Exif` box, including Brotli-compressed
   `brob` boxes (feature `jxl-brob`, which now needs `std`), XMP from the `xml `
