@@ -726,9 +726,34 @@ impl<'a> Plan<'a> {
         if let Some((jpeg, at)) = self.thumbnail {
             items.push((at, Item::Bytes(jpeg.to_vec())));
         }
-        // Lay the items out in order: they never overlap (the allocator
-        // steps over reserved ranges), and the gaps between them are zeros.
+        // Lay the items out in order, with zeros in the gaps. New blocks never
+        // overlap (the allocator steps over reserved ranges), but values kept
+        // at their source offsets may: two tags can share one value, or one
+        // can start inside another. They were kept because they equal the
+        // source bytes there, so they agree where they overlap; merge them,
+        // and treat any disagreement as the layout error it would be.
         items.sort_by_key(|(at, _)| *at);
+        let mut merged: Vec<(u64, Item)> = Vec::with_capacity(items.len());
+        for (at, item) in items {
+            if let (Some((last_at, Item::Bytes(last))), Item::Bytes(bytes)) =
+                (merged.last_mut(), &item)
+            {
+                let last_end =
+                    last_at.saturating_add(u64::try_from(last.len()).unwrap_or(u64::MAX));
+                if at < last_end {
+                    let offset = usize::try_from(at - *last_at).map_err(|_| layout_error())?;
+                    let shared = last.len().saturating_sub(offset).min(bytes.len());
+                    let end = offset.checked_add(shared).ok_or(layout_error())?;
+                    if last.get(offset..end) != bytes.get(..shared) {
+                        return Err(layout_error());
+                    }
+                    last.extend_from_slice(bytes.get(shared..).unwrap_or_default());
+                    continue;
+                }
+            }
+            merged.push((at, item));
+        }
+        let items = merged;
         let mut out = Pieces::default();
         let mut pos = 0u64;
         for (at, item) in items {

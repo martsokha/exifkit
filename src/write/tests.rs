@@ -535,3 +535,37 @@ fn raw_magic_needs_a_byte_order_that_can_carry_it() {
     assert_eq!(&out[..4], b"MMOR");
     assert_eq!(Exif::read(&out).unwrap().0.entries().count(), 1);
 }
+
+#[test]
+fn values_sharing_source_bytes_are_written_once() {
+    // Found in review: Make and Model pointing at the same bytes, and
+    // Software at a suffix of them, all kept in place by the writer.
+    let mut tiff = b"II*\0\x08\0\0\0\x03\0".to_vec();
+    let text_at: u32 = 8 + 2 + 3 * 12 + 4;
+    for (tag, count, at) in [
+        (0x010Fu16, 8u32, text_at),
+        (0x0110, 8, text_at),
+        (0x0131, 5, text_at + 3),
+    ] {
+        tiff.extend_from_slice(&tag.to_le_bytes());
+        tiff.extend_from_slice(&2u16.to_le_bytes());
+        tiff.extend_from_slice(&count.to_le_bytes());
+        tiff.extend_from_slice(&at.to_le_bytes());
+    }
+    tiff.extend_from_slice(&0u32.to_le_bytes());
+    tiff.extend_from_slice(b"ACME Co\0");
+    let (exif, _) = Exif::read(&tiff).unwrap();
+    let out = exif
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&tiff))
+        .unwrap();
+    assert_eq!(Exif::from_tiff(&out).unwrap().0, exif);
+    // Unchanged, they all stay where they were: the block is the same.
+    assert_eq!(out, tiff);
+    // An edit to one of them still moves only that one.
+    let mut edited = exif.clone();
+    edited.set(Tag::MODEL, "Widget 3000").unwrap();
+    let out = edited
+        .to_tiff_with(&WriteOptions::DEFAULT.source(&tiff))
+        .unwrap();
+    assert_eq!(Exif::from_tiff(&out).unwrap().0, edited);
+}
