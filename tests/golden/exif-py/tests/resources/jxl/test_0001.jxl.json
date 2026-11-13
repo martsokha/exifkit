@@ -1,0 +1,167 @@
+{
+  "entries": [
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 271,
+      "name": "Make",
+      "value": "Lab 308"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 272,
+      "name": "Model",
+      "value": "Smart Pilot Cam"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 34858,
+      "name": "TimeZoneOffset",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 36867,
+      "name": "DateTimeOriginal",
+      "value": "2025:08:15 22:25:54"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37386,
+      "name": "FocalLength",
+      "value": 14
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 37500,
+      "name": "MakerNoteUnknownText",
+      "value": "{}"
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41486,
+      "name": "FocalPlaneXResolution",
+      "value": 0.0012
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41487,
+      "name": "FocalPlaneYResolution",
+      "value": 0.0012
+    },
+    {
+      "copy": 0,
+      "group": "ExifIFD",
+      "id": 41488,
+      "name": "FocalPlaneResolutionUnit",
+      "value": 3
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 1,
+      "name": "GPSLatitudeRef",
+      "value": "N"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 2,
+      "name": "GPSLatitude",
+      "value": 44.06037845
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 3,
+      "name": "GPSLongitudeRef",
+      "value": "W"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 4,
+      "name": "GPSLongitude",
+      "value": 121.314136
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 5,
+      "name": "GPSAltitudeRef",
+      "value": 0
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 6,
+      "name": "GPSAltitude",
+      "value": 2019.847
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 12,
+      "name": "GPSSpeedRef",
+      "value": "K"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 13,
+      "name": "GPSSpeed",
+      "value": 251.999815
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 14,
+      "name": "GPSTrackRef",
+      "value": "T"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 15,
+      "name": "GPSTrack",
+      "value": 34.223909
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 16,
+      "name": "GPSImgDirectionRef",
+      "value": "T"
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 17,
+      "name": "GPSImgDirection",
+      "value": 124.223909
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 53248,
+      "name": "GPS_0xd000",
+      "value": 40
+    },
+    {
+      "copy": 0,
+      "group": "GPS",
+      "id": 53249,
+      "name": "GPS_0xd001",
+      "value": 0
+    }
+  ],
+  "exiftool": "13.55",
+  "warnings": []
+}

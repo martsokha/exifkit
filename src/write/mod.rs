@@ -44,6 +44,11 @@ pub struct WriteOptions<'a> {
     /// kept at its original offsets and copied over. Without it, such
     /// references cannot be written.
     pub source: Option<&'a [u8]>,
+    /// Caps for decoding the file's own Exif block, which
+    /// [`Exif::write_into`] and [`Exif::write_stream`] use as the source:
+    /// [`Limits::max_metadata`](crate::Limits::max_metadata) bounds how much
+    /// of it is read and decoded.
+    pub limits: crate::limits::Limits,
 }
 
 impl<'a> WriteOptions<'a> {
@@ -52,6 +57,7 @@ impl<'a> WriteOptions<'a> {
         byte_order: None,
         maker_note: MakerNotePolicy::Anchor,
         source: None,
+        limits: crate::limits::Limits::DEFAULT,
     };
 
     /// Sets [`WriteOptions::byte_order`].
@@ -65,6 +71,13 @@ impl<'a> WriteOptions<'a> {
     #[must_use]
     pub const fn maker_note(mut self, policy: MakerNotePolicy) -> Self {
         self.maker_note = policy;
+        self
+    }
+
+    /// Sets [`WriteOptions::limits`].
+    #[must_use]
+    pub const fn limits(mut self, limits: crate::limits::Limits) -> Self {
+        self.limits = limits;
         self
     }
 

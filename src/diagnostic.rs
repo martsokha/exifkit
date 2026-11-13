@@ -85,6 +85,9 @@ pub enum DiagnosticKind {
     /// The container ends before a structure it declares. The Exif data may
     /// be incomplete.
     TruncatedContainer,
+    /// An ISOBMFF `Exif` payload (JPEG XL, HEIF) says the TIFF header starts
+    /// past the end of the payload. The Exif data is ignored.
+    InvalidExifOffset,
 }
 
 impl DiagnosticKind {
@@ -113,7 +116,8 @@ impl DiagnosticKind {
             | Self::InvalidPointer
             | Self::InvalidThumbnail
             | Self::LimitExceeded(_)
-            | Self::TruncatedContainer => Severity::Error,
+            | Self::TruncatedContainer
+            | Self::InvalidExifOffset => Severity::Error,
         }
     }
 
@@ -151,6 +155,7 @@ impl DiagnosticKind {
             Self::ExifAfterImageData => "Exif after image data",
             Self::CrcMismatch => "chunk CRC mismatch",
             Self::TruncatedContainer => "truncated file",
+            Self::InvalidExifOffset => "Exif TIFF header offset out of bounds",
         }
     }
 }

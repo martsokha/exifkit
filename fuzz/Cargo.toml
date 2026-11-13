@@ -12,7 +12,7 @@ cargo-fuzz = true
 members = ["."]
 
 [dependencies]
-exifkit = { path = "..", features = ["png-legacy"] }
+exifkit = { path = "..", features = ["png-legacy", "jxl-brob"] }
 libfuzzer-sys = { version = "0.4" }
 
 [[bin]]

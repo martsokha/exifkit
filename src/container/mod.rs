@@ -5,9 +5,13 @@
 //! code reads a byte slice in place or a `Read + Seek` stream without
 //! loading the file.
 
+#[cfg(feature = "jxl")]
+mod bmff;
 mod input;
 #[cfg(feature = "jpeg")]
 mod jpeg;
+#[cfg(feature = "jxl")]
+mod jxl;
 // Each format uses a different part of the piece list.
 #[cfg_attr(
     not(all(
@@ -65,6 +69,34 @@ impl fmt::Display for Format {
             Self::Heif => "HEIF",
             Self::Jxl => "JPEG XL",
         })
+    }
+}
+
+/// Most bytes a decoded metadata block may inflate to where no
+/// [`Limits`](crate::Limits) are passed in (`xmp`, `icc_profile`, sizing a
+/// JPEG XL Exif box): [`Limits::max_metadata`](crate::Limits::max_metadata)'s default.
+#[cfg(any(all(feature = "png", feature = "inflate"), feature = "jxl"))]
+pub(crate) const METADATA_LIMIT: usize = crate::limits::Limits::DEFAULT.max_metadata;
+
+/// Decodes a Brotli-compressed JPEG XL Exif payload straight from `range` of
+/// `input`: the compressed data is streamed into the decompressor, never held
+/// whole. Returns the TIFF block.
+#[cfg(feature = "jxl-brob")]
+pub(crate) fn decode_brob_in(
+    input: &mut impl Input,
+    range: Range<u64>,
+    limit: usize,
+) -> Result<alloc::vec::Vec<u8>> {
+    jxl::decode_brob_in(input, range, limit)
+}
+
+/// Whether this build can decode a payload stored this way.
+#[cfg(feature = "std")]
+pub(crate) const fn decodable(encoding: Encoding) -> bool {
+    match encoding {
+        Encoding::Raw => true,
+        Encoding::Brotli => cfg!(feature = "jxl-brob"),
+        Encoding::PngRawProfile { .. } => cfg!(feature = "png-legacy"),
     }
 }
 
@@ -133,6 +165,9 @@ pub fn detect(prefix: &[u8]) -> Option<Format> {
 pub enum Encoding {
     /// The bytes at [`Located::exif`] are the TIFF block itself.
     Raw,
+    /// JPEG XL `brob` box wrapping an `Exif` box: Brotli-compressed.
+    /// [`Located::exif`] is the compressed data (feature `jxl-brob`).
+    Brotli,
     /// PNG legacy text chunk ("Raw profile type exif"): hex text, and
     /// zlib-compressed when `compressed`. [`Located::exif`] is the chunk data.
     PngRawProfile {
@@ -244,10 +279,18 @@ fn finish_detect(
                 what: "WebP (enable the `webp` feature)",
             });
         }
-        Format::Heif | Format::Jxl => {
+        Format::Jxl => {
+            #[cfg(feature = "jxl")]
+            return jxl::locate(input, diagnostics);
+            #[cfg(not(feature = "jxl"))]
+            return Err(Error::Unsupported {
+                what: "JPEG XL (enable the `jxl` feature)",
+            });
+        }
+        Format::Heif => {
             let _ = diagnostics;
             Err(Error::Unsupported {
-                what: "HEIF and JPEG XL are not readable yet",
+                what: "HEIF is not readable yet",
             })
         }
     }
@@ -268,6 +311,18 @@ pub(crate) fn tiff_payload<'a>(
     let decoded = encoding != Encoding::Raw;
     let payload = match encoding {
         Encoding::Raw => payload,
+        Encoding::Brotli => {
+            #[cfg(feature = "jxl")]
+            {
+                Cow::Owned(jxl::decode_brob(&payload, limit)?)
+            }
+            #[cfg(not(feature = "jxl"))]
+            {
+                return Err(Error::Unsupported {
+                    what: "JPEG XL (enable the `jxl` feature)",
+                });
+            }
+        }
         Encoding::PngRawProfile {
             compressed,
             text_offset,
@@ -327,6 +382,8 @@ pub fn xmp(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
         Format::Png => png::xmp(data),
         #[cfg(feature = "webp")]
         Format::WebP => Ok(webp::chunk_data(data, b"XMP ")?.map(Cow::Borrowed)),
+        #[cfg(feature = "jxl")]
+        Format::Jxl => jxl::xmp(data),
         format => Err(unreadable(format)),
     }
 }
@@ -354,6 +411,11 @@ pub fn icc_profile(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
         Format::Png => Ok(png::icc(data)?.map(Cow::Owned)),
         #[cfg(feature = "webp")]
         Format::WebP => Ok(webp::chunk_data(data, b"ICCP")?.map(Cow::Borrowed)),
+        // JPEG XL keeps its color encoding in the codestream header, which
+        // would need a codestream decoder to reach.
+        Format::Jxl => Err(Error::Unsupported {
+            what: "the ICC profile of a JPEG XL file (it is in the codestream)",
+        }),
         format => Err(unreadable(format)),
     }
 }
@@ -362,7 +424,7 @@ pub fn icc_profile(data: &[u8]) -> Result<Option<Cow<'_, [u8]>>> {
 fn unreadable(format: Format) -> Error {
     Error::Unsupported {
         what: match format {
-            Format::Heif | Format::Jxl => "HEIF and JPEG XL are not readable yet",
+            Format::Heif => "HEIF is not readable yet",
             _ => "this format (its feature is disabled)",
         },
     }
@@ -388,7 +450,7 @@ pub(crate) fn plan(
 ) -> Result<pieces::Pieces> {
     let _ = tiff;
     #[cfg_attr(
-        not(any(feature = "jpeg", feature = "png", feature = "webp")),
+        not(any(feature = "jpeg", feature = "png", feature = "webp", feature = "jxl")),
         allow(unused_variables)
     )]
     let len = input.len()?.ok_or(Error::Unsupported {
@@ -401,6 +463,8 @@ pub(crate) fn plan(
         Format::Png => png::plan(input, len, tiff),
         #[cfg(feature = "webp")]
         Format::WebP => webp::plan(input, len, tiff),
+        #[cfg(feature = "jxl")]
+        Format::Jxl => jxl::plan(input, len, tiff),
         Format::Tiff => Err(Error::Unsupported {
             what: "removing Exif from a TIFF file (its metadata is the file's structure)",
         }),

@@ -13,9 +13,9 @@ and every loop has an upper bound.
 ## Implementation status
 
 Reading and writing are implemented for JPEG, TIFF, PNG (reading includes
-`png-legacy`) and WebP in `src/container/`; `Exif::write_into` and
-`remove_exif` are the entry points (`src/write/file.rs`). HEIF and JPEG XL are detected but return
-`Error::Unsupported` until M3. Each scanner works over an internal
+`png-legacy`), WebP and JPEG XL in `src/container/`; `Exif::write_into` and
+`remove_exif` are the entry points (`src/write/file.rs`). HEIF is detected but
+returns `Error::Unsupported` until the rest of M3. Each scanner works over an internal
 `Input` trait, implemented for byte slices and for `Read + Seek` streams,
 so `Exif::read` and `Exif::read_from` share one code path and fuzzing
 checks that they agree. `container::locate` exposes where the payload is
@@ -55,7 +55,12 @@ What we do differently from this design:
   so both give identical output (checked on the corpus and by the
   `write_into` fuzz target). Only marker and chunk headers, Exif headers,
   the MPF segment, text-chunk keywords, the `VP8X` flags and the first
-  bytes of a WebP bitstream are read.
+  bytes of a WebP bitstream are read. The file's own Exif block is read as
+  the writer's source only if this build can decode it, at most 64 MiB of
+  it (`Limits::max_metadata`), growing as bytes arrive rather than preallocated
+  from a length field. A `brob` block is decompressed straight from the
+  stream, output capped at the same limit. TIFF is the exception: the file
+  is its own Exif block and is read whole.
 - **Raw formats:** Olympus ORF (`IIRO`, `MMOR`, `IIRS`) and Panasonic RW2
   (`IIU\0`) are TIFF structures under their own magic number. They are
   detected as `Format::Tiff`, and `write_into` keeps the file's magic.
@@ -83,7 +88,7 @@ What we do differently from this design:
 | PNG        | `eXIf` chunk (legacy: `zTXt`/`iTXt`/`tEXt` raw profile) | n/a                              | 2³¹−1              | ✓       | ✓ (`eXIf` only) |
 | WebP       | `EXIF` chunk in RIFF, requires `VP8X`                   | n/a (**quirk:** sometimes `Exif\0\0`) | 4 GiB          | ✓       | ✓        |
 | HEIF/AVIF  | `Exif` item in `meta`; data in `mdat`/`idat` via `iloc` | 4-byte BE offset to TIFF header  | 4 GiB              | ✓       | ✓ (M3)   |
-| JPEG XL    | `Exif` box (or `brob` wrapping it) in the BMFF container | 4-byte BE offset to TIFF header | n/a                | ✓       | ✓ (M3)   |
+| JPEG XL    | `Exif` box (or `brob` wrapping it) in the BMFF container | 4-byte BE offset to TIFF header | n/a                | ✓       | ✓        |
 
 Format detection (`detect`) uses magic bytes only: `FF D8 FF`;
 `II*\0` / `MM\0*`; `\x89PNG\r\n\x1a\n`; `RIFF????WEBP`; `????ftyp` +
@@ -249,15 +254,45 @@ detect and skip.
 
 ## JPEG XL
 
-**Read:** Only the container form (ISOBMFF-style boxes starting with the
-`JXL ` signature box) can hold Exif. A bare codestream cannot. Look for
-an `Exif` box, whose payload is the u32 BE TIFF header offset followed
-by the TIFF data, as in HEIF. If instead there is a `brob` box whose
-first 4 bytes are `Exif`, Brotli-decompress the rest (feature
-`jxl-brob`, with the output capped by `Limits`).
+Implemented in `src/container/jxl.rs`, over the shared ISOBMFF box walker in
+`src/container/bmff.rs` (which HEIF will reuse).
 
-**Write (M3):** Replace or insert an `Exif` box before the first
-`jxlc`/`jxlp` box. We always write it uncompressed. If the source had a
-`brob`, we replace it with a plain `Exif` box. There are no offsets to
-fix up (JXL boxes do not cross-reference each other), so this is a pure
-splice.
+**Read:** Only the container form (boxes starting with the `JXL ` signature
+box) can hold Exif. A bare codestream (`FF 0A`) has none. The `Exif` box
+payload is a u32 BE TIFF header offset, then that many bytes to skip (some
+writers put `Exif\0\0` there), then the TIFF block; an offset past the
+payload is `DiagnosticKind::InvalidExifOffset`. A `brob` box whose first 4
+bytes are `Exif` holds the same payload Brotli-compressed (`Encoding::Brotli`).
+`cjxl` writes Exif this way when it transcodes a JPEG. Decompressing it needs
+feature `jxl-brob` (which needs `std`), and the output is capped by
+`Limits`, streamed so a Brotli bomb stops at the cap. A second Exif box is
+`DuplicateExif`.
+
+**Write:** Replace the Exif box (plain or `brob`) with a plain `Exif` box with
+offset 0, or insert one before the first `jxlc`/`jxlp` box. Boxes do not
+reference each other, so this is a pure splice. A bare codestream is wrapped
+in a container (signature, `ftyp`, `Exif`, then the codestream in `jxlc`),
+since only the container can carry Exif; `djxl` decodes the result to the
+same pixels. `remove_exif` drops every Exif box.
+
+**JPEG reconstruction data (`jbrd`):** a losslessly transcoded JPEG can be
+rebuilt byte for byte by `djxl`, but only if the Exif payload has exactly
+the size `jbrd` records. Checked with libjxl: one byte more or less and
+`djxl` silently falls back to decoding pixels. Whether `jbrd` records an
+Exif segment is read from the start of its header (the marker list, then
+each APP segment's type), as libjxl's `JPEGData` fields encode it; a JPEG
+transcoded without Exif records none. The recorded segment length also
+gives the required box size (libjxl's `ExifBoxContentSize`: the segment
+minus its marker, length and `Exif\0\0`, plus the 4-byte offset), so no
+`brob` box needs decompressing to find it. So when `jbrd` records an Exif segment,
+the new TIFF block is padded with zeros to the original payload size (and
+the rebuilt JPEG then carries the new Exif); a bigger block is
+`Error::TooLarge` rather than a silent loss of the lossless round trip.
+`remove_exif` writes an empty TIFF block of that size instead of dropping
+the box. Adding Exif to a transcode that had none keeps the reconstruction
+(the new box is not part of it).
+
+**XMP and ICC:** `container::xmp` returns the `xml ` box (a `brob`-wrapped one
+with `jxl-brob`). The ICC profile lives in the codestream header, so
+`container::icc_profile` returns `Error::Unsupported` for JPEG XL.
+

@@ -353,8 +353,9 @@ fn check(golden: &Json, data: &[u8], stats: &mut Stats) -> Vec<String> {
     }
     let (exif, _diagnostics) = match Exif::read(data) {
         Ok(read) => read,
-        Err(exifkit::Error::Unsupported { .. }) if !cfg!(feature = "png-legacy") => {
-            // Legacy PNG text chunks need the `png-legacy` feature.
+        Err(exifkit::Error::Unsupported { what }) if what.contains("enable the `") => {
+            // Needs an optional feature this build lacks (`png-legacy` for
+            // legacy PNG text chunks, `jxl-brob` for compressed JPEG XL).
             stats.skipped += entries.len();
             return problems;
         }
@@ -1075,7 +1076,9 @@ fn xmp_and_icc_match_exiftool() {
             let theirs = exiftool_binary(&file, tag);
             match (ours, theirs) {
                 (Ok(Some(ours)), Some(theirs)) if *ours == *theirs => *count += 1,
-                (Ok(None), None) => {}
+                // JPEG XL keeps its ICC profile in the codestream, which
+                // neither tool decodes.
+                (Ok(None) | Err(exifkit::Error::Unsupported { .. }), None) => {}
                 (Ok(ours), theirs) => {
                     let _ = writeln!(
                         report,

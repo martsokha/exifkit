@@ -273,7 +273,7 @@ pub(super) fn decode_raw_profile(
         .and_then(|s| s.trim().parse().ok())
         .ok_or_else(|| malformed("malformed PNG raw profile length"))?;
     if len > limit {
-        return Err(Error::LimitExceeded(Limit::Alloc));
+        return Err(Error::LimitExceeded(Limit::Metadata));
     }
     let mut out = alloc::vec::Vec::with_capacity(len);
     let mut digits = hex.iter().filter(|b| !b.is_ascii_whitespace());
@@ -295,7 +295,7 @@ pub(super) fn decode_raw_profile(
 fn inflate(data: &[u8], limit: usize) -> Result<Vec<u8>> {
     miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(data, limit).map_err(|e| {
         if e.status == miniz_oxide::inflate::TINFLStatus::HasMoreOutput {
-            Error::LimitExceeded(crate::limits::Limit::Alloc)
+            Error::LimitExceeded(crate::limits::Limit::Metadata)
         } else {
             Error::Malformed {
                 offset: 0,
@@ -316,7 +316,7 @@ fn keyword<'a>(data: &'a [u8], span: &Span) -> Option<(&'a [u8], &'a [u8])> {
 /// lookup tables and padded XMP compress far better than any fixed ratio;
 /// inflating stops at the cap, so a zlib bomb still cannot exhaust memory.
 #[cfg(feature = "inflate")]
-const INFLATE_LIMIT: usize = 64 * 1024 * 1024;
+const INFLATE_LIMIT: usize = super::METADATA_LIMIT;
 
 /// The XMP packet: the `iTXt` chunk with keyword `XML:com.adobe.xmp`.
 pub(super) fn xmp(data: &[u8]) -> Result<Option<alloc::borrow::Cow<'_, [u8]>>> {

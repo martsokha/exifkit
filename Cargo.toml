@@ -43,8 +43,8 @@ jxl = []
 inflate = ["dep:miniz_oxide"]
 # Legacy PNG text chunks with Exif as a hex "Raw profile type exif" (needs inflate).
 png-legacy = ["png", "inflate"]
-# Brotli-compressed (`brob`) JPEG XL Exif boxes.
-jxl-brob = ["jxl"]
+# Brotli-compressed (`brob`) JPEG XL Exif and XMP boxes. Needs `std`.
+jxl-brob = ["jxl", "std", "dep:brotli-decompressor"]
 
 # Integrations.
 serde = []
@@ -55,6 +55,7 @@ chrono = []
 # Optional dependencies are added as the features above are implemented
 # (see docs/architecture.md#cargo-features). The default build stays dependency-free.
 miniz_oxide = { version = "0.9", optional = true, default-features = false, features = ["with-alloc"] }
+brotli-decompressor = { version = "6", optional = true }
 
 [dev-dependencies]
 serde_json = { version = "1.0" }

@@ -961,3 +961,51 @@ source = "exiftool"
 path = "t/images/Panasonic.rw2"
 sha256 = "431a1239713ce1bca8f0b422b9a094372246669432060e2a0a21d1fd2f761678"
 size = 12344
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/JXL.jxl"
+sha256 = "703e7e03afe9744f31186d2f3373ff866d444ebccbe973518ecdbbaeb814d95b"
+size = 22
+
+[[fixture]]
+source = "exiftool"
+path = "t/images/JXL2.jxl"
+sha256 = "4bc68f38fa4c08441e77b3f0185737b8f08834274b59cfe6d3230f54edc4a5fb"
+size = 395
+
+[[fixture]]
+source = "exif-py"
+path = "tests/resources/jxl/test_0001.jxl"
+sha256 = "eaf96763e28e35f81361c49bb9a5c60b5dbe96eb72c7a64a8f065f295ec8c63c"
+size = 87295
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000064/a.jxl"
+sha256 = "9356a78e625368d9524e955ef81327328ffb5b04dbd827ef825600b39bc126b2"
+size = 1526283
+
+[[fixture]]
+source = "little_exif"
+path = "tests/iso_no_exif.jxl"
+sha256 = "cd276a2acce7574f589c8c014f697ef73b8d8bb2bba654827700c520649d30d0"
+size = 109
+
+[[fixture]]
+source = "little_exif"
+path = "tests/no_exif.jxl"
+sha256 = "94b25770a76b3e0d0386b1523f2f37e5f8758f1c0e72e4d061665a3a9a2ebf96"
+size = 69
+
+[[fixture]]
+source = "little_exif"
+path = "tests/with_exif.jxl"
+sha256 = "0425db537c5fc6ae11783d13ba7daa669b80cea3cdcba7b1a1b34b3342544b43"
+size = 355
+
+[[fixture]]
+source = "little_exif"
+path = "issue_tests/resources/issue_000070/IMG_2762.HEIC"
+sha256 = "13a692a27275b686c09b71e4c912cc0ff82af3ca88d6c2d630ad5b78a4bfa26b"
+size = 7282
