@@ -12,7 +12,8 @@
 
 use std::fmt::Write as _;
 
-use common::{goldens, root};
+use common::{fixture, goldens, root};
+use exifkit::tag::Role;
 use exifkit::{Exif, FromValue, IfdKind, Tag, Value};
 
 mod common;
@@ -88,7 +89,7 @@ fn writer_round_trips_the_corpus() {
             .strip_prefix(root.join("tests/golden"))
             .expect("golden under tests/golden")
             .with_extension("");
-        let Ok(data) = std::fs::read(external.join(&rel)) else {
+        let Some(data) = fixture(&external.join(&rel)) else {
             continue;
         };
         let Ok((exif, _)) = Exif::read(&data) else {
@@ -96,6 +97,13 @@ fn writer_round_trips_the_corpus() {
         };
         let expected = writable(&exif);
         let name = rel.display();
+        // Strips, tiles or a thumbnail by offset: the only reason a compact
+        // write (no source) may refuse.
+        let data_refs = exif.entries().any(|(_, e)| {
+            e.tag()
+                .info()
+                .is_some_and(|i| matches!(i.role, Role::DataOffset | Role::DataLength))
+        });
 
         // With the source TIFF block (not available for decoded PNG text).
         let source = exifkit::container::locate(&data)
@@ -153,7 +161,7 @@ fn writer_round_trips_the_corpus() {
                     let _ = writeln!(report, "{name}: compact output unreadable: {err}");
                 }
             },
-            Err(exifkit::Error::Unsupported { .. }) => needs_source += 1,
+            Err(exifkit::Error::Unsupported { .. }) if data_refs => needs_source += 1,
             Err(err) => {
                 let _ = writeln!(report, "{name}: compact write failed: {err}");
             }
@@ -183,7 +191,7 @@ fn write_into_round_trips_and_keeps_image_data() {
             .strip_prefix(root.join("tests/golden"))
             .unwrap()
             .with_extension("");
-        let Ok(data) = std::fs::read(external.join(&rel)) else {
+        let Some(data) = fixture(&external.join(&rel)) else {
             continue;
         };
         let Ok((exif, _)) = Exif::read(&data) else {

@@ -15,25 +15,38 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use common::{goldens, root};
+use common::{fixture, goldens, root};
 use exifkit::{Exif, FromValue, Tag, Value};
 use serde_json::Value as Json;
 
 mod common;
 
+/// Runs ExifTool on `file` and returns its standard output. These tests
+/// are run on purpose, so ExifTool missing from PATH fails them.
+fn exiftool(args: &[&str], file: &Path) -> Vec<u8> {
+    std::process::Command::new("exiftool")
+        .args(args)
+        .arg(file)
+        .output()
+        .unwrap_or_else(|err| panic!("running exiftool (is it on PATH?): {err}"))
+        .stdout
+}
+
+/// Tags read from one file, keyed by `family0:family1:name`.
+type Tags = std::collections::BTreeMap<String, Vec<(String, Json)>>;
+
 /// Runs ExifTool and returns its EXIF and MakerNotes tags, keyed by
 /// `family0:family1:name` with copy numbers removed, as sorted `(id, value)`
 /// lists (one per copy).
-fn exiftool_tags(file: &Path) -> Option<std::collections::BTreeMap<String, Vec<(String, Json)>>> {
-    let output = std::process::Command::new("exiftool")
-        .args(["-j", "-D", "-n", "-a", "-u", "-G0:1:4"])
-        .arg(file)
-        .output()
-        .ok()?;
-    let parsed: Json = serde_json::from_slice(&output.stdout).ok()?;
-    let object = parsed.get(0)?.as_object()?;
-    let mut tags: std::collections::BTreeMap<String, Vec<(String, Json)>> =
-        std::collections::BTreeMap::new();
+fn exiftool_tags(file: &Path) -> Result<Tags, String> {
+    let output = exiftool(&["-j", "-D", "-n", "-a", "-u", "-G0:1:4"], file);
+    let parsed: Json = serde_json::from_slice(&output)
+        .map_err(|err| format!("exiftool -j output is not JSON: {err}"))?;
+    let object = parsed
+        .get(0)
+        .and_then(Json::as_object)
+        .ok_or("exiftool -j output has no object")?;
+    let mut tags = Tags::new();
     for (key, item) in object {
         if !(key.starts_with("EXIF:") || key.starts_with("MakerNotes:")) {
             continue;
@@ -49,18 +62,15 @@ fn exiftool_tags(file: &Path) -> Option<std::collections::BTreeMap<String, Vec<(
     for list in tags.values_mut() {
         list.sort_by_key(|(id, value)| (id.clone(), value.to_string()));
     }
-    Some(tags)
+    Ok(tags)
 }
 
 /// `exiftool -validate` warnings, one per occurrence (`[x3]` counts three),
 /// with numbers masked so the same warning at another offset still matches.
-fn validate(file: &Path) -> Option<Vec<String>> {
-    let output = std::process::Command::new("exiftool")
-        .args(["-validate", "-warning", "-a", "-s3"])
-        .arg(file)
-        .output()
-        .ok()?;
-    let text = String::from_utf8(output.stdout).ok()?;
+fn validate(file: &Path) -> Result<Vec<String>, String> {
+    let output = exiftool(&["-validate", "-warning", "-a", "-s3"], file);
+    let text = String::from_utf8(output)
+        .map_err(|err| format!("exiftool -validate output is not UTF-8: {err}"))?;
     let mask = |s: &str| {
         s.split(' ')
             .map(|word| {
@@ -87,7 +97,7 @@ fn validate(file: &Path) -> Option<Vec<String>> {
         };
         warnings.extend(std::iter::repeat_n(mask(warning), times));
     }
-    Some(warnings)
+    Ok(warnings)
 }
 
 /// After an edit (a long new `ImageDescription`, which moves data around),
@@ -138,7 +148,7 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
                 .any(|w| w.contains("incorrect maker notes offsets"))
         });
         let original = external.join(&rel);
-        let Ok(data) = std::fs::read(&original) else {
+        let Some(data) = fixture(&original) else {
             continue;
         };
         let Ok((exif, _)) = Exif::read(&data) else {
@@ -149,17 +159,24 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
         let description = "exifkit ".repeat(40);
         let mut edited = exif.clone();
         let _ = edited.remove(Tag::IMAGE_DESCRIPTION);
-        if edited
-            .insert(exifkit::Entry::new(
-                Tag::IMAGE_DESCRIPTION,
-                Value::ascii(&description),
-            ))
-            .is_err()
-        {
+        if let Err(err) = edited.insert(exifkit::Entry::new(
+            Tag::IMAGE_DESCRIPTION,
+            Value::ascii(&description),
+        )) {
+            let _ = writeln!(report, "{}: the edit failed: {err}", rel.display());
             continue;
         }
-        let Ok(file) = edited.write_into(&data) else {
-            continue;
+        // Skipped: formats exifkit does not write, and containers the long
+        // description does not fit (a JPEG APP1 segment is at most 64 KiB; a
+        // JXL file with `jbrd` keeps its Exif size). Any other failure is a
+        // regression.
+        let file = match edited.write_into(&data) {
+            Ok(file) => file,
+            Err(exifkit::Error::Unsupported { .. } | exifkit::Error::TooLarge { .. }) => continue,
+            Err(err) => {
+                let _ = writeln!(report, "{}: writing the edit failed: {err}", rel.display());
+                continue;
+            }
         };
         // Keep the extension: ExifTool names some tags by file type.
         let ext = original
@@ -168,10 +185,12 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
             .unwrap_or("bin");
         let written = tmp.join(format!("{index}.{ext}"));
         std::fs::write(&written, &file).unwrap();
-        let (Some(mut before), Some(mut after)) =
-            (exiftool_tags(&original), exiftool_tags(&written))
-        else {
-            continue;
+        let (mut before, mut after) = match (exiftool_tags(&original), exiftool_tags(&written)) {
+            (Ok(before), Ok(after)) => (before, after),
+            (Err(err), _) | (_, Err(err)) => {
+                let _ = writeln!(report, "{}: {err}", rel.display());
+                continue;
+            }
         };
         // Found by tag id: ExifTool's RW2 table has no name for 0x010E.
         let id = Tag::IMAGE_DESCRIPTION.id().to_string();
@@ -240,8 +259,12 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
             let _ = writeln!(report, "{}: {key} added", rel.display());
         }
         // The rewrite must not add `exiftool -validate` warnings.
-        let (Some(before), Some(after)) = (validate(&original), validate(&written)) else {
-            continue;
+        let (before, after) = match (validate(&original), validate(&written)) {
+            (Ok(before), Ok(after)) => (before, after),
+            (Err(err), _) | (_, Err(err)) => {
+                let _ = writeln!(report, "{}: {err}", rel.display());
+                continue;
+            }
         };
         for warning in after.iter().filter(|w| {
             after.iter().filter(|x| x == w).count() > before.iter().filter(|x| x == w).count()
@@ -262,12 +285,8 @@ fn exiftool_sees_only_the_edit_in_rewritten_files() {
 
 /// `exiftool -b -<tag>`: the raw bytes ExifTool extracts, or `None`.
 fn exiftool_binary(file: &Path, tag: &str) -> Option<Vec<u8>> {
-    let output = std::process::Command::new("exiftool")
-        .args(["-b", &format!("-{tag}")])
-        .arg(file)
-        .output()
-        .ok()?;
-    (!output.stdout.is_empty()).then_some(output.stdout)
+    let output = exiftool(&["-b", &format!("-{tag}")], file);
+    (!output.is_empty()).then_some(output)
 }
 
 /// The XMP packet and ICC profile exifkit extracts match ExifTool's, byte
@@ -288,7 +307,7 @@ fn xmp_and_icc_match_exiftool() {
             .unwrap()
             .with_extension("");
         let file = external.join(&rel);
-        let Ok(data) = std::fs::read(&file) else {
+        let Some(data) = fixture(&file) else {
             continue;
         };
         let name = rel.display();

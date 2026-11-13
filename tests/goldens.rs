@@ -18,7 +18,7 @@
 
 use std::fmt::Write as _;
 
-use common::{goldens, root};
+use common::{fixture, goldens, root};
 use exifkit::tiff::ByteOrder;
 use exifkit::{EncodedText, Entry, Exif, IfdKind, Namespace, Rational, SRational, Tag, Value};
 use serde_json::Value as Json;
@@ -493,7 +493,7 @@ fn matches_exiftool_on_the_sample_corpus() {
             .strip_prefix(root.join("tests/golden"))
             .expect("golden under tests/golden")
             .with_extension("");
-        let Ok(data) = std::fs::read(external.join(&rel)) else {
+        let Some(data) = fixture(&external.join(&rel)) else {
             missing += 1;
             continue;
         };
