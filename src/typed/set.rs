@@ -3,13 +3,13 @@
 use alloc::string::String;
 use alloc::vec::Vec;
 
-use crate::datetime::{DateTime, Offset, SubSec};
 use crate::error::{Error, Result};
 use crate::ifd::IfdKind;
 use crate::model::{Entry, Exif};
 use crate::tag::{StringKind, Tag, TagInfo, Version};
-use crate::text::{Copyright, EncodedText, TextEncoding};
 use crate::tiff::{ByteOrder, Type};
+use crate::typed::datetime::{DateTime, Offset, SubSec};
+use crate::typed::text::{Copyright, EncodedText, TextEncoding};
 use crate::value::{Rational, SRational, Value, ValueError};
 
 /// Converts a Rust value into the [`Value`] a tag expects.

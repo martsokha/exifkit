@@ -2,13 +2,18 @@
 //! from a stream.
 
 use alloc::borrow::Cow;
+#[cfg(feature = "std")]
 use alloc::collections::BTreeMap;
+#[cfg(feature = "std")]
 use alloc::vec::Vec;
+#[cfg(feature = "std")]
 use core::cell::RefCell;
 use core::fmt;
 
 use super::ByteOrder;
+#[cfg(feature = "std")]
 use crate::container::Input;
+#[cfg(feature = "std")]
 use crate::error::{Error, Result};
 
 /// Bounds-checked access to a TIFF block.
@@ -23,11 +28,11 @@ pub struct Reader<'a> {
     order: ByteOrder,
 }
 
-// Streams (`Paged`) are only read through the `std` APIs.
-#[cfg_attr(not(feature = "std"), allow(dead_code))]
 #[derive(Clone, Copy)]
 enum Data<'a> {
     Slice(&'a [u8]),
+    /// Streams are only read through the `std` APIs.
+    #[cfg(feature = "std")]
     Paged(&'a Paged<'a>),
 }
 
@@ -51,7 +56,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Creates a reader over a TIFF block read on demand from a stream.
-    #[cfg_attr(not(feature = "std"), allow(dead_code))]
+    #[cfg(feature = "std")]
     pub(crate) const fn paged(source: &'a Paged<'a>, order: ByteOrder) -> Self {
         Self {
             data: Data::Paged(source),
@@ -70,6 +75,7 @@ impl<'a> Reader<'a> {
     pub fn len(&self) -> usize {
         match self.data {
             Data::Slice(data) => data.len(),
+            #[cfg(feature = "std")]
             Data::Paged(paged) => usize::try_from(paged.len).unwrap_or(usize::MAX),
         }
     }
@@ -90,6 +96,7 @@ impl<'a> Reader<'a> {
                 let end = start.checked_add(usize::try_from(len).ok()?)?;
                 data.get(start..end).map(Cow::Borrowed)
             }
+            #[cfg(feature = "std")]
             Data::Paged(paged) => paged.get(u64::from(offset), u64::from(len)).map(Cow::Owned),
         }
     }
@@ -115,7 +122,9 @@ impl<'a> Reader<'a> {
 }
 
 /// Size of a cached page.
+#[cfg(feature = "std")]
 const PAGE: u64 = 4096;
+#[cfg(feature = "std")]
 /// Most pages cached at once (1 MiB). The cache is dropped when full: IFD
 /// walks read in clusters, so a simple reset is enough.
 const MAX_PAGES: usize = 256;
@@ -126,7 +135,7 @@ const MAX_PAGES: usize = 256;
 /// the thumbnail, never the image data in between. Reads larger than a page
 /// bypass the cache. The first I/O error is kept for [`Paged::take_error`],
 /// and the failed read reports out of bounds, so parsing stops cleanly.
-#[cfg_attr(not(feature = "std"), allow(dead_code))]
+#[cfg(feature = "std")]
 pub(crate) struct Paged<'a> {
     input: RefCell<&'a mut dyn Input>,
     len: u64,
@@ -134,7 +143,7 @@ pub(crate) struct Paged<'a> {
     error: RefCell<Option<Error>>,
 }
 
-#[cfg_attr(not(feature = "std"), allow(dead_code))]
+#[cfg(feature = "std")]
 impl<'a> Paged<'a> {
     /// Wraps the first `len` bytes of `input`.
     pub(crate) fn new(input: &'a mut dyn Input, len: u64) -> Self {
@@ -234,6 +243,7 @@ impl<'a> Paged<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "std")]
     use crate::container::Slice;
 
     #[test]
@@ -247,9 +257,11 @@ mod tests {
         assert_eq!(r.bytes(4, 0).as_deref(), Some(&[][..]));
     }
 
+    #[cfg(feature = "std")]
     /// An input whose reads fail.
     struct Broken;
 
+    #[cfg(feature = "std")]
     impl Input for Broken {
         fn read_at(&mut self, _: u64, _: &mut [u8]) -> Result<bool> {
             Err(Error::Unsupported {
@@ -263,6 +275,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn a_failed_header_read_reports_the_failure() {
         // Found in review: not `InvalidHeader`, which would hide it.
         let mut input = Broken;
@@ -275,6 +288,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn paged_reads_match_slice_reads() {
         let data: Vec<u8> = (0..20_000u32).map(|i| (i * 7) as u8).collect();
         let mut input = Slice(&data);

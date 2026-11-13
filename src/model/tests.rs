@@ -2,8 +2,10 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 
+use super::walk::MAX_BAD_ENTRIES;
 use super::*;
 use crate::diagnostic::Severity;
+use crate::limits::Limit;
 use crate::tag::Orientation;
 use crate::tiff::Type;
 use crate::value::Rational;

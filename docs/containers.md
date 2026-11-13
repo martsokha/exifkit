@@ -80,8 +80,8 @@ What we do differently from this design:
   ICC profiles match `exiftool -b` byte for byte.
 - **Verified on the corpus:** writing back changes no byte outside the
   Exif data (`remove_exif` of the original equals `remove_exif` of the
-  rewrite, on 115 files). `exiftool -validate` reports no new warnings
-  after an edit, on 127 files.
+  rewrite, on 120 files). `exiftool -validate` reports no new warnings
+  after an edit, on 135 files.
 
 ## Summary
 

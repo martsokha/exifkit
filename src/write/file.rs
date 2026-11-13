@@ -4,7 +4,9 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 
 use super::WriteOptions;
-use crate::container::{self, Format};
+use super::plan::{Plan, Source};
+use crate::container::{self, Format, Input, Located, Pieces, Slice};
+use crate::diagnostic::Diagnostics;
 use crate::error::{Error, Result};
 use crate::model::Exif;
 
@@ -43,41 +45,20 @@ impl Exif {
     ///
     /// As [`Exif::write_into`].
     pub fn write_into_with(&self, original: &[u8], options: &WriteOptions<'_>) -> Result<Vec<u8>> {
-        let (located, _) = container::locate(original)?;
+        let mut input = Slice(original);
+        let located = container::locate_in(&mut input, &mut Diagnostics::default())?;
+        if located.format == Format::Tiff {
+            // A TIFF file is its own source, unless the caller gives one.
+            let source = options.source.unwrap_or(original);
+            return self
+                .tiff_pieces(options, &source, magic(&mut input)?)?
+                .to_vec(&mut Slice(source));
+        }
+        let own = source_in(&mut input, &located, options)?;
         let mut options = *options;
-        // The file's own block is the source; if it cannot serve (too big,
-        // or not decodable here), fail rather than write a different file.
-        let own = match (&located.exif, options.source) {
-            (Some(range), None) => {
-                check_size(&located, range, &options.limits)?;
-                let at = |o: u64| usize::try_from(o).unwrap_or(usize::MAX);
-                let payload = original
-                    .get(at(range.start)..at(range.end).min(original.len()))
-                    .unwrap_or_default();
-                Some(own_block(
-                    Cow::Borrowed(payload),
-                    located.encoding,
-                    original.len(),
-                    &options.limits,
-                )?)
-            }
-            _ => None,
-        };
-        if let Some(own) = &own {
-            options.source = Some(own);
-        }
-        match located.format {
-            // A TIFF file is its TIFF block; image data stays in place. A raw
-            // format (ORF, RW2) keeps its own magic number.
-            Format::Tiff => {
-                let magic = crate::tiff::Header::parse(original)
-                    .map_or(crate::tiff::Header::TIFF, |h| h.magic);
-                super::plan::Plan::new(self, &options)?
-                    .with_magic(magic)?
-                    .serialize(options.source)
-            }
-            format => container::splice(original, format, Some(&self.to_tiff_with(&options)?)),
-        }
+        options.source = options.source.or(own.as_deref());
+        let tiff = self.to_tiff_with(&options)?;
+        container::plan(&mut input, located.format, Some(&tiff))?.to_vec(&mut input)
     }
 
     /// Writes the metadata into the file read from `src`, writing the new
@@ -126,93 +107,37 @@ impl Exif {
         W: std::io::Write,
     {
         let mut input = container::Stream(src);
-        let mut diagnostics = crate::diagnostic::Diagnostics::default();
-        let located = container::locate_in(&mut input, &mut diagnostics)?;
-        // A TIFF file is its own source: plan against it read on demand, then
-        // copy the image data through from the stream. Only the IFDs and
-        // values are read, never the strips or tiles.
-        if located.format == Format::Tiff && options.source.is_none() {
-            let len = container::Input::len(&mut input)?.unwrap_or(0);
-            let pieces = {
-                let paged = crate::tiff::Paged::new(&mut input, len);
-                let header = crate::tiff::Header::parse(&paged.header()?)?;
-                let plan = super::plan::Plan::with_source(self, options, Some(&paged))?
-                    .with_magic(header.magic)?;
-                if let Some(err) = paged.take_error() {
-                    return Err(err);
+        let located = container::locate_in(&mut input, &mut Diagnostics::default())?;
+        if located.format == Format::Tiff {
+            let magic = magic(&mut input)?;
+            let pieces = match options.source {
+                // As `write_into_with`, against the caller's source.
+                Some(source) => {
+                    let tiff = self
+                        .tiff_pieces(options, &source, magic)?
+                        .to_vec(&mut Slice(source))?;
+                    dst.write_all(&tiff)?;
+                    return Ok(());
                 }
-                plan.pieces()?
+                // A TIFF file is its own source: plan against it read on
+                // demand (IFDs and values only), then copy the strips and
+                // tiles through from the stream.
+                None => {
+                    let len = container::Input::len(&mut input)?.unwrap_or(0);
+                    let paged = crate::tiff::Paged::new(&mut input, len);
+                    let pieces = self.tiff_pieces(options, &paged, magic);
+                    if let Some(err) = paged.take_error() {
+                        return Err(err);
+                    }
+                    pieces?
+                }
             };
             pieces.emit(&mut input, &mut |bytes| Ok(dst.write_all(bytes)?))?;
             return Ok(());
         }
-        // The file's own block, read from the stream, is the source, as in
-        // `write_into_with`: if it cannot serve, the write fails. A block this
-        // build cannot decode fails before it is read, and outside TIFF (whose
-        // block is the whole file) no more than `max_metadata` is read. A
-        // compressed block is decompressed as it is read, so only its capped
-        // output is ever held.
-        let file_len = container::Input::len(&mut input)?
-            .and_then(|len| usize::try_from(len).ok())
-            .unwrap_or(usize::MAX);
-        let own = match (&located.exif, options.source) {
-            (Some(range), None) => {
-                if !container::decodable(located.encoding) {
-                    container::tiff_payload(
-                        Cow::Borrowed(&[]),
-                        located.encoding,
-                        0,
-                        &mut diagnostics,
-                    )?;
-                }
-                #[cfg(feature = "jxl-brob")]
-                let decoded = if located.encoding == container::Encoding::Brotli {
-                    let limit = options.limits.metadata_budget(file_len);
-                    Some(container::decode_brob_in(&mut input, range.clone(), limit)?)
-                } else {
-                    None
-                };
-                #[cfg(not(feature = "jxl-brob"))]
-                let decoded: Option<Vec<u8>> = None;
-                Some(match decoded {
-                    Some(tiff) => own_block(
-                        Cow::Owned(tiff),
-                        container::Encoding::Raw,
-                        file_len,
-                        &options.limits,
-                    )?,
-                    None => {
-                        check_size(&located, range, &options.limits)?;
-                        let payload = container::read_range(&mut input, range.clone())?;
-                        own_block(
-                            Cow::Owned(payload),
-                            located.encoding,
-                            file_len,
-                            &options.limits,
-                        )?
-                    }
-                })
-            }
-            _ => None,
-        };
+        let own = source_in(&mut input, &located, options)?;
         let mut options = *options;
-        if let Some(own) = &own {
-            options.source = Some(own);
-        }
-        if located.format == Format::Tiff {
-            // With a caller-given source, as `write_into_with` does.
-            let mut magic = [0u8; 8];
-            let magic = if container::Input::read_at(&mut input, 0, &mut magic)? {
-                crate::tiff::Header::parse(&magic).map_or(crate::tiff::Header::TIFF, |h| h.magic)
-            } else {
-                crate::tiff::Header::TIFF
-            };
-            let tiff = super::plan::Plan::new(self, &options)?
-                .with_magic(magic)?
-                .serialize(options.source)?;
-            dst.write_all(&tiff)?;
-            return Ok(());
-        }
+        options.source = options.source.or(own.as_deref());
         let tiff = self.to_tiff_with(&options)?;
         let pieces = container::plan(&mut input, located.format, Some(&tiff))?;
         pieces.emit(&mut input, &mut |bytes| Ok(dst.write_all(bytes)?))?;
@@ -220,44 +145,80 @@ impl Exif {
     }
 }
 
-/// The file's own TIFF block, decoded as the reader decodes it (a
-/// compressed JPEG XL `brob` box or a legacy PNG text chunk included), to
-/// serve as the writer's source.
+impl Exif {
+    /// Plans a TIFF file rewritten against `source`, keeping `magic` (a raw
+    /// format's own). The pieces copy image data from `source` by range.
+    fn tiff_pieces(
+        &self,
+        options: &WriteOptions<'_>,
+        source: &dyn Source,
+        magic: u16,
+    ) -> Result<Pieces> {
+        Plan::with_source(self, options, Some(source))?
+            .with_magic(magic)?
+            .pieces()
+    }
+}
+
+/// The magic number of the TIFF file behind `input`: 42, or a raw format's.
+fn magic(input: &mut impl Input) -> Result<u16> {
+    let mut header = [0u8; 8];
+    Ok(if input.read_at(0, &mut header)? {
+        crate::tiff::Header::parse(&header).map_or(crate::tiff::Header::TIFF, |h| h.magic)
+    } else {
+        crate::tiff::Header::TIFF
+    })
+}
+
+/// The file's own Exif block, decoded as the reader decodes it, to serve as
+/// the writer's source (`None` if the file has none or the caller gave a
+/// source). Both write paths take it from here, so they agree.
+///
+/// Memory stays bounded by the metadata: a block this build cannot decode
+/// fails before it is read; a raw block over
+/// [`Limits::max_metadata`](crate::Limits::max_metadata) is refused; a
+/// compressed one is decompressed as it is read, output capped the same way.
 ///
 /// # Errors
 ///
-/// The decoding error ([`Error::Unsupported`] for a disabled feature,
-/// [`Error::LimitExceeded`] past [`Limits::max_metadata`](crate::Limits::max_metadata)).
-fn own_block<'a>(
-    payload: Cow<'a, [u8]>,
-    encoding: container::Encoding,
-    file_len: usize,
-    limits: &crate::limits::Limits,
-) -> Result<Cow<'a, [u8]>> {
-    let mut diagnostics = crate::diagnostic::Diagnostics::default();
-    container::tiff_payload(
-        payload,
-        encoding,
-        limits.metadata_budget(file_len),
-        &mut diagnostics,
-    )
-    .map(|(block, _)| block)
-}
-
-/// Refuses an Exif block bigger than [`Limits::max_metadata`] as a source,
-/// except in TIFF, where the block is the whole file.
-///
-/// [`Limits::max_metadata`]: crate::Limits::max_metadata
-fn check_size(
-    located: &container::Located,
-    range: &core::ops::Range<u64>,
-    limits: &crate::limits::Limits,
-) -> Result<()> {
+/// When the block cannot serve, the write fails rather than silently giving
+/// a different file: [`Error::Unsupported`] if this build cannot decode it,
+/// [`Error::LimitExceeded`] past the cap, or the decoding error.
+fn source_in(
+    input: &mut impl Input,
+    located: &Located,
+    options: &WriteOptions<'_>,
+) -> Result<Option<Vec<u8>>> {
+    let (Some(range), None) = (&located.exif, options.source) else {
+        return Ok(None);
+    };
+    let limits = &options.limits;
+    let file_len = input
+        .len()?
+        .and_then(|len| usize::try_from(len).ok())
+        .unwrap_or(usize::MAX);
+    let budget = limits.metadata_budget(file_len);
+    let mut diagnostics = Diagnostics::default();
+    if !container::decodable(located.encoding) {
+        // Fails with the reason (a disabled feature), before reading.
+        container::tiff_payload(Cow::Borrowed(&[]), located.encoding, 0, &mut diagnostics)?;
+    }
+    #[cfg(feature = "jxl-brob")]
+    if located.encoding == container::Encoding::Brotli {
+        return container::decode_brob(input, range.clone(), budget).map(Some);
+    }
     let max = u64::try_from(limits.max_metadata).unwrap_or(u64::MAX);
-    if located.format != Format::Tiff && range.end.saturating_sub(range.start) > max {
+    if range.end.saturating_sub(range.start) > max {
         return Err(Error::LimitExceeded(crate::limits::Limit::Metadata));
     }
-    Ok(())
+    let payload = container::read_range(input, range.clone())?;
+    let (block, _) = container::tiff_payload(
+        Cow::Owned(payload),
+        located.encoding,
+        budget,
+        &mut diagnostics,
+    )?;
+    Ok(Some(block.into_owned()))
 }
 
 /// Removes the Exif data from a JPEG, PNG, WebP or JPEG XL file: the Exif

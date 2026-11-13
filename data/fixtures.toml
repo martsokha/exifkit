@@ -1,4 +1,5 @@
-# Third-party sample images used by tests/corpus.rs. They are NOT committed:
+# Third-party sample images used by the corpus tests (tests/goldens.rs,
+# tests/roundtrip.rs, tests/exiftool.rs). They are NOT committed:
 # `cargo xtask fixtures` downloads them, pinned by commit and checked by SHA-256,
 # into tests/fixtures/external/ (gitignored). See docs/roadmap.md#testing.
 #

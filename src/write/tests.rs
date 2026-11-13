@@ -436,13 +436,13 @@ fn an_oversized_source_block_fails_on_both_paths() {
 }
 
 /// A `Read + Seek` that counts the bytes read through it.
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "tiff"))]
 struct Counting<'a> {
     inner: std::io::Cursor<&'a [u8]>,
     read: std::rc::Rc<core::cell::Cell<u64>>,
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "tiff"))]
 impl std::io::Read for Counting<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let n = std::io::Read::read(&mut self.inner, buf)?;
@@ -451,7 +451,7 @@ impl std::io::Read for Counting<'_> {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "tiff"))]
 impl std::io::Seek for Counting<'_> {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         std::io::Seek::seek(&mut self.inner, pos)
@@ -513,6 +513,7 @@ fn tiff_streams_read_metadata_not_image_data() {
 }
 
 #[test]
+#[cfg(feature = "tiff")]
 fn raw_magic_needs_a_byte_order_that_can_carry_it() {
     // Found in review: RW2 and ORF `IIRS` exist only little-endian, so
     // writing them big-endian would give a header no reader recognizes.
@@ -537,6 +538,7 @@ fn raw_magic_needs_a_byte_order_that_can_carry_it() {
 }
 
 #[test]
+#[cfg(feature = "tiff")]
 fn values_sharing_source_bytes_are_written_once() {
     // Found in review: Make and Model pointing at the same bytes, and
     // Software at a suffix of them, all kept in place by the writer.

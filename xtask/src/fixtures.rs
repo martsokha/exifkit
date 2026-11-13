@@ -3,7 +3,7 @@
 //! Third-party sample images are never committed. `fixtures` downloads the
 //! pinned list in `data/fixtures.toml` into `tests/fixtures/external/`, and
 //! `golden` records what ExifTool reads from each one in `tests/golden/`,
-//! which is committed. `tests/corpus.rs` compares exifkit against the goldens.
+//! which is committed. `tests/goldens.rs` compares exifkit against the goldens.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

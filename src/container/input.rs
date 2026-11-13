@@ -13,10 +13,7 @@ pub(crate) trait Input {
     fn len(&mut self) -> Result<Option<u64>>;
 
     /// Reads `N` bytes at `offset`, or `None` past the end.
-    #[cfg_attr(
-        not(any(feature = "jpeg", feature = "png", feature = "webp")),
-        allow(dead_code)
-    )]
+    #[cfg(any(feature = "jpeg", feature = "png", feature = "webp", feature = "jxl"))]
     fn array<const N: usize>(&mut self, offset: u64) -> Result<Option<[u8; N]>>
     where
         Self: Sized,
@@ -73,9 +70,11 @@ mod tests {
     #[test]
     fn slice_reads_are_bounds_checked() {
         let mut input = Slice(&[1, 2, 3]);
-        assert_eq!(input.array::<2>(1).unwrap(), Some([2, 3]));
-        assert_eq!(input.array::<2>(2).unwrap(), None);
-        assert_eq!(input.array::<1>(u64::MAX).unwrap(), None);
+        let mut two = [0u8; 2];
+        assert!(input.read_at(1, &mut two).unwrap());
+        assert_eq!(two, [2, 3]);
+        assert!(!input.read_at(2, &mut two).unwrap());
+        assert!(!input.read_at(u64::MAX, &mut [0u8; 1]).unwrap());
         assert_eq!(input.len().unwrap(), Some(3));
     }
 }
