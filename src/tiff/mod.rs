@@ -10,6 +10,7 @@ mod reader;
 use core::fmt;
 
 pub use self::ifd::{DataError, RawEntry, RawIfd};
+pub(crate) use self::reader::Paged;
 pub use self::reader::Reader;
 use crate::error::{Error, Result};
 
@@ -185,6 +186,17 @@ impl Header {
     pub const RW2: u16 = 0x55;
     /// Standard TIFF.
     pub const TIFF: u16 = 42;
+
+    /// Whether a header with this byte order and magic is one readers
+    /// recognize: TIFF in either order, ORF as `IIRO` or `MMOR`, and ORF
+    /// `IIRS` and RW2 (`IIU\0`) little-endian only.
+    #[must_use]
+    pub const fn is_known(byte_order: ByteOrder, magic: u16) -> bool {
+        matches!(
+            (byte_order, magic),
+            (_, Self::TIFF | Self::ORF) | (ByteOrder::LittleEndian, Self::ORF_RS | Self::RW2)
+        )
+    }
 
     /// Creates a standard TIFF header.
     #[must_use]

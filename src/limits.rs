@@ -22,10 +22,11 @@ pub struct Limits {
     /// to derive it from the input (4 × input length + 64 KiB).
     pub max_alloc: Option<usize>,
     /// Maximum size of a decoded metadata block: decompressed Exif or XMP
-    /// (JPEG XL `brob`, legacy PNG text) and inflated PNG chunks, and the
-    /// file's own Exif block read as the writer's source. Fixed rather than
-    /// scaled with the file, so a small compressed box in a large image
-    /// cannot expand without bound. Default 64 MiB.
+    /// (JPEG XL `brob`, legacy PNG text) and inflated PNG chunks, the file's
+    /// own Exif block read as the writer's source, and any single value or
+    /// thumbnail in the TIFF structure. Fixed rather than scaled with the
+    /// file, so neither a small compressed box nor one bogus entry in a
+    /// large image can make memory use grow with the image. Default 64 MiB.
     pub max_metadata: usize,
 }
 

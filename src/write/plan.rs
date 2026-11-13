@@ -13,6 +13,7 @@ use core::ops::Range;
 
 use super::value::{encode, put32};
 use super::{MakerNotePolicy, WriteOptions};
+use crate::container::Pieces;
 use crate::error::{Error, Result};
 use crate::ifd::IfdKind;
 use crate::model::Exif;
@@ -70,9 +71,45 @@ pub(super) struct Plan<'a> {
     order: ByteOrder,
     nodes: Vec<Node>,
     thumbnail: Option<(&'a [u8], u64)>,
-    copies: Vec<(u64, &'a [u8])>,
+    /// Source ranges copied to the same offsets in the output.
+    copies: Vec<Range<u64>>,
     maker_note_at: Option<u64>,
     len: u64,
+    magic: u16,
+}
+
+/// The TIFF block the model was read from, as the writer reads it: a slice
+/// in memory, or a stream read on demand ([`Paged`](crate::tiff::Paged)).
+/// The writer only needs its length and a few small reads; image data is
+/// copied by range, never read into the plan.
+pub(crate) trait Source {
+    /// The length of the block.
+    fn len(&self) -> u64;
+    /// The bytes in `range`, or `None` past the end.
+    fn get(&self, range: Range<u64>) -> Option<alloc::borrow::Cow<'_, [u8]>>;
+}
+
+impl Source for &[u8] {
+    fn len(&self) -> u64 {
+        u64::try_from(<[u8]>::len(self)).unwrap_or(u64::MAX)
+    }
+
+    fn get(&self, range: Range<u64>) -> Option<alloc::borrow::Cow<'_, [u8]>> {
+        let start = usize::try_from(range.start).ok()?;
+        let end = usize::try_from(range.end).ok()?;
+        <[u8]>::get(self, start..end).map(alloc::borrow::Cow::Borrowed)
+    }
+}
+
+impl Source for crate::tiff::Paged<'_> {
+    fn len(&self) -> u64 {
+        crate::tiff::Paged::len(self)
+    }
+
+    fn get(&self, range: Range<u64>) -> Option<alloc::borrow::Cow<'_, [u8]>> {
+        crate::tiff::Paged::get(self, range.start, range.end.saturating_sub(range.start))
+            .map(alloc::borrow::Cow::Owned)
+    }
 }
 
 /// A pointer tag to write in a parent IFD: its id and the IFDs it lists.
@@ -120,9 +157,8 @@ fn parent_of(exif: &Exif, kind: IfdKind) -> Option<IfdKind> {
 }
 
 /// The ranges of `source` the model's offset/length pairs reference.
-fn data_ranges(exif: &Exif, source: &[u8], skip_thumbnail_refs: bool) -> Result<Vec<Range<u64>>> {
+fn data_ranges(exif: &Exif, source_len: u64, skip_thumbnail_refs: bool) -> Result<Vec<Range<u64>>> {
     let mut ranges = Vec::new();
-    let source_len = u64::try_from(source.len()).unwrap_or(u64::MAX);
     for ifd in exif.ifds() {
         for (offsets_tag, lengths_tag) in DATA_PAIRS {
             if skip_thumbnail_refs
@@ -185,13 +221,12 @@ fn kept_ranges(free: &[Range<u32>], also_free: Option<&Range<u32>>, len: u32) ->
 
 /// Whether the offset/length pair `tag` belongs to references data outside
 /// `source` (or, for an offset without its length, starts outside it).
-fn dangles(ifd: &crate::model::Ifd, tag: Tag, source: &[u8]) -> bool {
+fn dangles(ifd: &crate::model::Ifd, tag: Tag, source_len: u64) -> bool {
     let Some((offsets_tag, lengths_tag)) =
         DATA_PAIRS.into_iter().find(|(o, l)| *o == tag || *l == tag)
     else {
         return false;
     };
-    let source_len = u64::try_from(source.len()).unwrap_or(u64::MAX);
     let Some(offsets) = ifd
         .get(offsets_tag)
         .and_then(|e| Vec::<u32>::from_value(e.value()).ok())
@@ -214,14 +249,14 @@ fn dangles(ifd: &crate::model::Ifd, tag: Tag, source: &[u8]) -> bool {
 
 /// `at` if the source holds exactly `bytes` there (past the header): the
 /// value is unchanged and can stay where it was.
-fn pinned_at(source: Option<&[u8]>, at: Option<u32>, bytes: &[u8]) -> Option<u64> {
+fn pinned_at(source: Option<&dyn Source>, at: Option<u32>, bytes: &[u8]) -> Option<u64> {
     let at = at?;
-    let start = usize::try_from(at).ok()?;
-    if start < Header::LEN || bytes.len() <= 4 {
+    if (at as usize) < Header::LEN || bytes.len() <= 4 {
         return None;
     }
-    let end = start.checked_add(bytes.len())?;
-    (source?.get(start..end)? == bytes).then_some(u64::from(at))
+    let start = u64::from(at);
+    let end = start.checked_add(u64::try_from(bytes.len()).ok()?)?;
+    (*source?.get(start..end)? == *bytes).then_some(start)
 }
 
 fn overlaps(a: &Range<u64>, b: &Range<u64>) -> bool {
@@ -254,6 +289,20 @@ impl Allocator {
 
 impl<'a> Plan<'a> {
     pub(super) fn new(exif: &'a Exif, options: &WriteOptions<'a>) -> Result<Self> {
+        Self::with_source(
+            exif,
+            options,
+            options.source.as_ref().map(|s| s as &dyn Source),
+        )
+    }
+
+    /// Plans with `source` instead of [`WriteOptions::source`], which may be
+    /// a stream. The plan keeps no reference to it: copies are ranges.
+    pub(crate) fn with_source(
+        exif: &'a Exif,
+        options: &WriteOptions<'_>,
+        source: Option<&dyn Source>,
+    ) -> Result<Self> {
         let order = options.byte_order.unwrap_or(exif.byte_order());
         let thumbnail = exif.thumbnail();
 
@@ -282,12 +331,12 @@ impl<'a> Plan<'a> {
         // does not account for (MakerNote data, image strips, vendor data
         // referenced by offset, padding) stays in place. A source the model
         // was not read from only keeps the image data it references.
-        let layout = options.source.and_then(|source| {
+        let layout = source.and_then(|source| {
             exif.layout
                 .as_ref()
-                .filter(|l| usize::try_from(l.len).ok() == Some(source.len()))
+                .filter(|l| u64::from(l.len) == source.len())
         });
-        let layout_source = layout.and(options.source);
+        let layout_source = layout.and(source);
         let has_data_refs = exif.ifds().iter().any(|ifd| {
             ifd.entries().iter().any(|e| {
                 e.tag()
@@ -296,11 +345,11 @@ impl<'a> Plan<'a> {
                     && !(thumbnail.is_some() && ifd.kind() == IfdKind::Thumbnail)
             })
         });
-        let mut reserved = match (options.source, layout) {
+        let mut reserved = match (source, layout) {
             (Some(_), Some(layout)) => {
                 kept_ranges(&layout.free, layout.maker_note.as_ref(), layout.len)
             }
-            (Some(source), None) => data_ranges(exif, source, thumbnail.is_some())?,
+            (Some(source), None) => data_ranges(exif, source.len(), thumbnail.is_some())?,
             (None, _) if has_data_refs => {
                 return Err(Error::Unsupported {
                     what: "image data referenced by offset (strips, tiles or an unextracted \
@@ -309,14 +358,11 @@ impl<'a> Plan<'a> {
             }
             (None, _) => Vec::new(),
         };
-        let copies: Vec<(u64, &'a [u8])> = match options.source {
+        let copies: Vec<Range<u64>> = match source {
             Some(source) => reserved
                 .iter()
-                .filter_map(|r| {
-                    let start = usize::try_from(r.start).ok()?;
-                    let end = usize::try_from(r.end).ok()?;
-                    Some((r.start, source.get(start..end)?))
-                })
+                .filter(|r| r.end <= source.len())
+                .cloned()
                 .collect(),
             None => Vec::new(),
         };
@@ -423,9 +469,9 @@ impl<'a> Plan<'a> {
                     }
                     // A data reference that already pointed outside the source
                     // would point at unrelated bytes in the output: drop it.
-                    if let Some(source) = options.source
+                    if let Some(source) = source
                         && matches!(role, Role::DataOffset | Role::DataLength)
-                        && dangles(ifd, tag, source)
+                        && dangles(ifd, tag, source.len())
                     {
                         continue;
                     }
@@ -587,23 +633,56 @@ impl<'a> Plan<'a> {
             copies,
             maker_note_at,
             len,
+            magic: Header::TIFF,
         })
+    }
+
+    /// Writes `magic` in the header instead of 42: a raw format (ORF, RW2)
+    /// rewritten in place keeps its own.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Unsupported`] if the output byte order cannot carry it
+    /// (RW2 and ORF `IIRS` are little-endian only): such a header would be
+    /// unreadable, and writing 42 would silently change the format.
+    pub(crate) fn with_magic(mut self, magic: u16) -> Result<Self> {
+        if !Header::is_known(self.order, magic) {
+            return Err(Error::Unsupported {
+                what: "this raw format in the requested byte order (RW2 and ORF `IIRS` are little-endian only)",
+            });
+        }
+        self.magic = magic;
+        Ok(self)
     }
 
     pub(super) fn len(&self) -> usize {
         usize::try_from(self.len).unwrap_or(usize::MAX)
     }
 
-    pub(super) fn serialize(&self) -> Result<Vec<u8>> {
-        let mut out = vec![0u8; self.len()];
+    /// Writes the block in memory. `source` is the block the copies come
+    /// from, if any.
+    pub(super) fn serialize(&self, source: Option<&[u8]>) -> Result<Vec<u8>> {
+        self.pieces()?
+            .to_vec(&mut crate::container::Slice(source.unwrap_or_default()))
+    }
+
+    /// The block as pieces: copies are ranges of the source (at the same
+    /// offsets), everything else new bytes, and the gaps zeros. So a stream
+    /// can be rewritten without holding its image data, and the slice and
+    /// stream writers share one path.
+    pub(crate) fn pieces(&self) -> Result<Pieces> {
         let order = self.order;
-        let header = Header::new(
-            order,
-            self.table(IfdKind::Primary).unwrap_or(Header::LEN as u32),
-        );
-        put(&mut out, 0, &header.to_bytes())?;
-        for &(at, bytes) in &self.copies {
-            put(&mut out, at, bytes)?;
+        let mut items: Vec<(u64, Item)> = Vec::new();
+        let header = Header {
+            magic: self.magic,
+            ..Header::new(
+                order,
+                self.table(IfdKind::Primary).unwrap_or(Header::LEN as u32),
+            )
+        };
+        items.push((0, Item::Bytes(header.to_bytes().to_vec())));
+        for range in &self.copies {
+            items.push((range.start, Item::Copy(range.clone())));
         }
         for node in &self.nodes {
             let mut table =
@@ -638,15 +717,67 @@ impl<'a> Plan<'a> {
                         order,
                         u32::try_from(entry.at).map_err(|_| layout_error())?,
                     );
-                    put(&mut out, entry.at, &bytes)?;
+                    items.push((entry.at, Item::Bytes(bytes)));
                 }
             }
             put32(&mut table, order, self.next_of(node.kind).unwrap_or(0));
-            put(&mut out, node.at, &table)?;
+            items.push((node.at, Item::Bytes(table)));
         }
         if let Some((jpeg, at)) = self.thumbnail {
-            put(&mut out, at, jpeg)?;
+            items.push((at, Item::Bytes(jpeg.to_vec())));
         }
+        // Lay the items out in order, with zeros in the gaps. New blocks never
+        // overlap (the allocator steps over reserved ranges), but values kept
+        // at their source offsets may: two tags can share one value, or one
+        // can start inside another. They were kept because they equal the
+        // source bytes there, so they agree where they overlap; merge them,
+        // and treat any disagreement as the layout error it would be.
+        items.sort_by_key(|(at, _)| *at);
+        let mut merged: Vec<(u64, Item)> = Vec::with_capacity(items.len());
+        for (at, item) in items {
+            if let (Some((last_at, Item::Bytes(last))), Item::Bytes(bytes)) =
+                (merged.last_mut(), &item)
+            {
+                let last_end =
+                    last_at.saturating_add(u64::try_from(last.len()).unwrap_or(u64::MAX));
+                if at < last_end {
+                    let offset = usize::try_from(at - *last_at).map_err(|_| layout_error())?;
+                    let shared = last.len().saturating_sub(offset).min(bytes.len());
+                    let end = offset.checked_add(shared).ok_or(layout_error())?;
+                    if last.get(offset..end) != bytes.get(..shared) {
+                        return Err(layout_error());
+                    }
+                    last.extend_from_slice(bytes.get(shared..).unwrap_or_default());
+                    continue;
+                }
+            }
+            merged.push((at, item));
+        }
+        let items = merged;
+        let mut out = Pieces::default();
+        let mut pos = 0u64;
+        for (at, item) in items {
+            let len = match &item {
+                Item::Bytes(bytes) => u64::try_from(bytes.len()).map_err(|_| layout_error())?,
+                Item::Copy(range) => range.end.saturating_sub(range.start),
+            };
+            if len == 0 {
+                continue;
+            }
+            if at < pos {
+                return Err(layout_error());
+            }
+            out.zeros(at - pos);
+            match item {
+                Item::Bytes(bytes) => out.bytes(bytes),
+                Item::Copy(range) => out.copy(range),
+            }
+            pos = at.saturating_add(len);
+        }
+        if pos > self.len {
+            return Err(layout_error());
+        }
+        out.zeros(self.len - pos);
         Ok(out)
     }
 
@@ -709,11 +840,8 @@ const fn layout_error() -> Error {
     }
 }
 
-fn put(out: &mut [u8], at: u64, bytes: &[u8]) -> Result<()> {
-    let start = usize::try_from(at).map_err(|_| layout_error())?;
-    let end = start.checked_add(bytes.len()).ok_or(layout_error())?;
-    out.get_mut(start..end)
-        .ok_or(layout_error())?
-        .copy_from_slice(bytes);
-    Ok(())
+/// One placed item of the output.
+enum Item {
+    Bytes(Vec<u8>),
+    Copy(Range<u64>),
 }

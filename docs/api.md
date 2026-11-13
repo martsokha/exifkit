@@ -289,10 +289,10 @@ impl Exif {
 pub fn remove_exif(original: &[u8]) -> Result<Vec<u8>, Error>;   // delete the segment entirely
 ```
 
-`write_stream` gives the same bytes as `write_into`. For JPEG, PNG and
-WebP it reads only headers, small metadata chunks and the Exif block, and
-copies the image data through in 64 KiB blocks. A TIFF file is its own
-Exif block, so it is read whole.
+`write_stream` gives the same bytes as `write_into`. It reads only headers,
+small metadata chunks and the Exif block, and copies the image data through
+in 64 KiB blocks. A TIFF file is its own Exif block: its IFDs and values are
+read on demand and its strips and tiles copied through, never held.
 
 There is no `write_to_file(path)` that overwrites in place. Writing to a
 temporary file and renaming it is the caller's decision, and the docs

@@ -14,6 +14,8 @@ use crate::error::{Error, Result};
 pub(crate) enum Piece {
     /// Bytes copied from the original.
     Copy(Range<u64>),
+    /// Zero bytes.
+    Zeros(u64),
     /// New bytes.
     Bytes(Vec<u8>),
 }
@@ -52,12 +54,20 @@ impl Pieces {
         }
     }
 
+    pub(crate) fn zeros(&mut self, len: u64) {
+        if len > 0 {
+            self.len = self.len.saturating_add(len);
+            self.list.push(Piece::Zeros(len));
+        }
+    }
+
     /// Appends another list.
     pub(crate) fn extend(&mut self, other: Self) {
         for piece in other.list {
             match piece {
                 Piece::Copy(range) => self.copy(range),
                 Piece::Bytes(bytes) => self.bytes(bytes),
+                Piece::Zeros(len) => self.zeros(len),
             }
         }
     }
@@ -78,6 +88,15 @@ impl Pieces {
         for piece in &self.list {
             match piece {
                 Piece::Bytes(bytes) => sink(bytes)?,
+                Piece::Zeros(len) => {
+                    let zero = [0u8; 4096];
+                    let mut left = *len;
+                    while left > 0 {
+                        let n = usize::try_from(left.min(zero.len() as u64)).unwrap_or(zero.len());
+                        sink(zero.get(..n).unwrap_or_default())?;
+                        left = left.saturating_sub(n as u64);
+                    }
+                }
                 Piece::Copy(range) => {
                     let mut at = range.start;
                     while at < range.end {

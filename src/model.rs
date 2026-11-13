@@ -425,7 +425,17 @@ impl Exif {
     ) -> Result<(Self, Diagnostics)> {
         let header = Header::parse(data)?;
         let reader = Reader::new(data, header.byte_order);
-        Ok(Walker::new(reader, options).run(header.ifd0_offset))
+        Ok(Self::from_reader(reader, header.ifd0_offset, options))
+    }
+
+    /// Walks the IFDs behind `reader`, starting at IFD0, ignoring
+    /// [`ReadOptions::strict`].
+    pub(crate) fn from_reader(
+        reader: Reader<'_>,
+        ifd0: u32,
+        options: &ReadOptions,
+    ) -> (Self, Diagnostics) {
+        Walker::new(reader, options).run(ifd0)
     }
 
     /// Returns the byte order.
@@ -1038,19 +1048,35 @@ impl<'a, 'o> Walker<'a, 'o> {
                 field: raw.field,
             });
         };
-        match raw.data() {
-            Ok(data) => {
-                // Out-of-line value data is rewritten from the model, so its
-                // source range may be reused. The MakerNote is the exception.
-                if tag != Tag::MAKER_NOTE
-                    && let (Ok(len), Ok(at)) = (raw.byte_len(), raw.data_offset())
-                    && len > 4
-                {
-                    self.account(at, len);
-                }
-                self.charge(data.len(), kind)
-                    .then(|| Value::decode(ty, data, self.reader.byte_order()))
+        // Bounds and budget come first: from a stream, the bytes are only
+        // read once they are known to fit.
+        if let (Ok(len), Ok(at)) = (raw.byte_len(), raw.data_offset())
+            && u64::from(at).saturating_add(u64::from(len))
+                <= u64::try_from(self.reader.len()).unwrap_or(u64::MAX)
+        {
+            // One value is never bigger than a metadata block may be, however
+            // large the file (and so the budget) is.
+            let size = usize::try_from(len).unwrap_or(usize::MAX);
+            if size > self.options.limits.max_metadata {
+                self.report(
+                    Diagnostic::new(DiagnosticKind::LimitExceeded(Limit::Metadata))
+                        .in_ifd(kind)
+                        .for_tag(tag)
+                        .at(raw.offset()),
+                );
+                return None;
             }
+            // Out-of-line value data is rewritten from the model, so its
+            // source range may be reused. The MakerNote is the exception.
+            if tag != Tag::MAKER_NOTE && len > 4 {
+                self.account(at, len);
+            }
+            if !self.charge(size, kind) {
+                return None;
+            }
+        }
+        match raw.data() {
+            Ok(data) => Some(Value::decode(ty, &data, self.reader.byte_order())),
             Err(DataError::OutOfBounds { offset }) => {
                 self.report(
                     Diagnostic::new(DiagnosticKind::OutOfBounds)
@@ -1186,19 +1212,32 @@ impl<'a, 'o> Walker<'a, 'o> {
         let ThumbnailRefs { offset, length } = refs;
         if let (Some((Some(at), _)), Some((Some(len), _))) = (&offset, &length) {
             let (at, len) = (*at, *len);
-            if let Some(bytes) = self.reader.bytes(at, len) {
-                if self.charge(bytes.len(), ifd.kind) {
-                    self.thumbnail = Some(bytes.to_vec());
+            // Bounds and budget first, so a stream reads only what fits.
+            let in_bounds = u64::from(at).saturating_add(u64::from(len))
+                <= u64::try_from(self.reader.len()).unwrap_or(u64::MAX);
+            let size = usize::try_from(len).unwrap_or(usize::MAX);
+            if in_bounds && size > self.options.limits.max_metadata {
+                // Bigger than any metadata block may be: keep the references.
+                self.report(
+                    Diagnostic::new(DiagnosticKind::LimitExceeded(Limit::Metadata))
+                        .in_ifd(ifd.kind)
+                        .at(at),
+                );
+            } else if in_bounds && !self.charge(size, ifd.kind) {
+                // Out of budget (already reported): keep the references.
+            } else {
+                if in_bounds && let Some(bytes) = self.reader.bytes(at, len) {
+                    self.thumbnail = Some(bytes.into_owned());
                     self.thumbnail_at = Some(at);
                     self.account(at, len);
+                    return;
                 }
-                return;
+                self.report(
+                    Diagnostic::new(DiagnosticKind::InvalidThumbnail)
+                        .in_ifd(ifd.kind)
+                        .at(at),
+                );
             }
-            self.report(
-                Diagnostic::new(DiagnosticKind::InvalidThumbnail)
-                    .in_ifd(ifd.kind)
-                    .at(at),
-            );
         }
         ifd.entries.extend(offset.map(|(_, e)| e));
         ifd.entries.extend(length.map(|(_, e)| e));

@@ -66,29 +66,34 @@ impl Exif {
         if let Some(own) = &own {
             options.source = Some(own);
         }
-        let tiff = self.to_tiff_with(&options)?;
         match located.format {
-            // A TIFF file is its TIFF block; image data stayed in place. A raw
+            // A TIFF file is its TIFF block; image data stays in place. A raw
             // format (ORF, RW2) keeps its own magic number.
-            Format::Tiff => Ok(keep_magic(original, tiff)),
-            format => container::splice(original, format, Some(&tiff)),
+            Format::Tiff => {
+                let magic = crate::tiff::Header::parse(original)
+                    .map_or(crate::tiff::Header::TIFF, |h| h.magic);
+                super::plan::Plan::new(self, &options)?
+                    .with_magic(magic)?
+                    .serialize(options.source)
+            }
+            format => container::splice(original, format, Some(&self.to_tiff_with(&options)?)),
         }
     }
 
     /// Writes the metadata into the file read from `src`, writing the new
     /// file to `dst`. The result is the same as [`Exif::write_into_with`],
-    /// but JPEG, PNG, WebP and JPEG XL files are streamed: only their
-    /// headers, small metadata chunks and the Exif block are read into
-    /// memory, and the image data is copied through in 64 KiB blocks.
+    /// but streamed: only headers, small metadata chunks and the Exif block
+    /// are read into memory, and the image data is copied through in 64 KiB
+    /// blocks.
     ///
     /// Memory use is bounded by the metadata, not the image: the file's own
     /// Exif block (the writer's source) is read only if this build can
     /// decode it, and at most [`Limits::max_metadata`](crate::Limits::max_metadata)
     /// of it (64 MiB by default, set through [`WriteOptions::limits`]); a
     /// Brotli-compressed JPEG XL block is decompressed as it is read, with
-    /// its output capped the same way. The exception is TIFF and TIFF-based raw files: the file
-    /// is its own Exif block, and the writer needs all of it as the source,
-    /// so it is read whole.
+    /// its output capped the same way. A TIFF or TIFF-based raw file is its
+    /// own Exif block: the writer reads its IFDs and values on demand and
+    /// copies the strips and tiles through from `src`, never holding them.
     ///
     /// `dst` must not be the file `src` reads from. Write to a temporary
     /// file and rename it over the original, so a failure leaves the
@@ -123,6 +128,24 @@ impl Exif {
         let mut input = container::Stream(src);
         let mut diagnostics = crate::diagnostic::Diagnostics::default();
         let located = container::locate_in(&mut input, &mut diagnostics)?;
+        // A TIFF file is its own source: plan against it read on demand, then
+        // copy the image data through from the stream. Only the IFDs and
+        // values are read, never the strips or tiles.
+        if located.format == Format::Tiff && options.source.is_none() {
+            let len = container::Input::len(&mut input)?.unwrap_or(0);
+            let pieces = {
+                let paged = crate::tiff::Paged::new(&mut input, len);
+                let header = crate::tiff::Header::parse(&paged.header()?)?;
+                let plan = super::plan::Plan::with_source(self, options, Some(&paged))?
+                    .with_magic(header.magic)?;
+                if let Some(err) = paged.take_error() {
+                    return Err(err);
+                }
+                plan.pieces()?
+            };
+            pieces.emit(&mut input, &mut |bytes| Ok(dst.write_all(bytes)?))?;
+            return Ok(());
+        }
         // The file's own block, read from the stream, is the source, as in
         // `write_into_with`: if it cannot serve, the write fails. A block this
         // build cannot decode fails before it is read, and outside TIFF (whose
@@ -176,32 +199,25 @@ impl Exif {
         if let Some(own) = &own {
             options.source = Some(own);
         }
-        let tiff = self.to_tiff_with(&options)?;
         if located.format == Format::Tiff {
-            let mut magic = [0u8; 4];
-            let tiff = if container::Input::read_at(&mut input, 0, &mut magic)? {
-                keep_magic(&magic, tiff)
+            // With a caller-given source, as `write_into_with` does.
+            let mut magic = [0u8; 8];
+            let magic = if container::Input::read_at(&mut input, 0, &mut magic)? {
+                crate::tiff::Header::parse(&magic).map_or(crate::tiff::Header::TIFF, |h| h.magic)
             } else {
-                tiff
+                crate::tiff::Header::TIFF
             };
+            let tiff = super::plan::Plan::new(self, &options)?
+                .with_magic(magic)?
+                .serialize(options.source)?;
             dst.write_all(&tiff)?;
             return Ok(());
         }
+        let tiff = self.to_tiff_with(&options)?;
         let pieces = container::plan(&mut input, located.format, Some(&tiff))?;
         pieces.emit(&mut input, &mut |bytes| Ok(dst.write_all(bytes)?))?;
         Ok(())
     }
-}
-
-/// Puts the original file's magic number into a rewritten TIFF file, when
-/// both have the same byte order (the writer always writes 42).
-fn keep_magic(original: &[u8], mut tiff: Vec<u8>) -> Vec<u8> {
-    if let (Some(from), Some(to)) = (original.get(..4), tiff.get_mut(..4))
-        && from.get(..2) == to.get(..2)
-    {
-        to.copy_from_slice(from);
-    }
-    tiff
 }
 
 /// The file's own TIFF block, decoded as the reader decodes it (a
