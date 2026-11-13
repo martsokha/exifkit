@@ -101,6 +101,7 @@ impl Source for &[u8] {
     }
 }
 
+#[cfg(feature = "std")]
 impl Source for crate::tiff::Paged<'_> {
     fn len(&self) -> u64 {
         crate::tiff::Paged::len(self)

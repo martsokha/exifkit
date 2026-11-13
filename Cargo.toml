@@ -57,6 +57,19 @@ chrono = []
 miniz_oxide = { version = "0.9", optional = true, default-features = false, features = ["with-alloc"] }
 brotli-decompressor = { version = "6", optional = true }
 
+# The corpus tests read every container and stream through `read_from`.
+[[test]]
+name = "goldens"
+required-features = ["std", "jpeg", "png", "webp", "tiff", "jxl"]
+
+[[test]]
+name = "roundtrip"
+required-features = ["std", "jpeg", "png", "webp", "tiff", "jxl"]
+
+[[test]]
+name = "exiftool"
+required-features = ["std", "jpeg", "png", "webp", "tiff", "jxl"]
+
 [dev-dependencies]
 serde_json = { version = "1.0" }
 

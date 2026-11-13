@@ -2,8 +2,8 @@ use alloc::string::ToString;
 use alloc::vec;
 
 use super::*;
-use crate::datetime::{Offset, SubSec};
 use crate::tag::{FileSource, Orientation};
+use crate::typed::datetime::{Offset, SubSec};
 
 fn exif_version(exif: &Exif) -> Option<Vec<u8>> {
     match exif.ifd(IfdKind::Exif)?.get(Tag::EXIF_VERSION)?.value() {

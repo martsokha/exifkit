@@ -172,12 +172,15 @@ jobs:
           key: ${{ runner.os }}-cargo-features-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-features-
 
-      # Each container must build and lint on its own.
-      - name: Clippy per feature
+      # Each feature alone: the library and its tests must build without
+      # warnings, and the unit tests must pass. Integration tests declare the
+      # features they need (`required-features`) and are skipped otherwise.
+      - name: Clippy and tests per feature
         run: |
           for features in "" jpeg png png-legacy inflate webp tiff jxl jxl-brob std; do
             echo "::group::--no-default-features --features '$features'"
-            cargo clippy -p exifkit --no-default-features --features "$features" -- -D warnings
+            cargo clippy -p exifkit --all-targets --no-default-features --features "$features" -- -D warnings
+            cargo test -p exifkit --lib --no-default-features --features "$features"
             echo "::endgroup::"
           done
 
@@ -260,7 +263,8 @@ jobs:
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-test-
 
-      # Sample images for tests/corpus.rs; never committed, pinned by SHA-256.
+      # Sample images for the corpus tests (tests/goldens.rs, roundtrip.rs,
+      # exiftool.rs); never committed, pinned by SHA-256.
       - name: Cache sample images
         uses: actions/cache@v6
         with:

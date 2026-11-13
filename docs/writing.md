@@ -78,9 +78,9 @@ records each value's offset. When writing with that same block:
 If the source was not the block the model was read from (the length
 differs), only the image data the model references is kept in place.
 
-Verified: on 122 real files, after an edit that forces relocations (a
+Verified: on 135 real files, after an edit that forces relocations (a
 320-byte `ImageDescription`), ExifTool reads every EXIF and MakerNotes
-tag exactly as in the original (`tests/corpus.rs`,
+tag exactly as in the original (`tests/exiftool.rs`,
 `exiftool_sees_only_the_edit_in_rewritten_files`). That includes Canon,
 Nikon (including inside DNG), Sony, Olympus, Fujifilm, Pentax and
 Panasonic MakerNotes.

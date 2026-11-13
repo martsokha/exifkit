@@ -63,6 +63,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A corrupt Brotli-compressed JPEG XL Exif box is reported at its offset in
+  the file by `read` too, as `read_from` does (it said 0 before).
+- Internal restructure, no API change: the IFD walker, container payload
+  decoding, write dispatch and XMP/ICC extraction live in their own modules,
+  `write_into` and `write_stream` share one path, and the corpus tests are
+  split into `tests/goldens.rs`, `tests/roundtrip.rs` and `tests/exiftool.rs`.
+- Every feature alone now builds its tests without warnings and passes them,
+  checked in CI.
+
 - `tiff::Reader::bytes`, `RawEntry::data` return `Cow<[u8]>` (borrowed for a
   block in memory), so the reader can also read on demand from a stream.
 

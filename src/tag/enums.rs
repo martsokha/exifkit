@@ -4,8 +4,8 @@
 
 use core::fmt;
 
-use crate::set::IntoValue;
 use crate::tag::Tag;
+use crate::typed::set::IntoValue;
 use crate::value::{FromValue, Value, ValueError};
 
 /// Values of [`Tag::COMPRESSION`](crate::tag::Tag::COMPRESSION).

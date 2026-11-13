@@ -62,6 +62,7 @@ impl Pieces {
     }
 
     /// Appends another list.
+    #[cfg(feature = "webp")]
     pub(crate) fn extend(&mut self, other: Self) {
         for piece in other.list {
             match piece {
@@ -73,6 +74,7 @@ impl Pieces {
     }
 
     /// The total output length.
+    #[cfg(feature = "webp")]
     pub(crate) const fn len(&self) -> u64 {
         self.len
     }
@@ -136,11 +138,9 @@ impl Pieces {
 pub(crate) fn read_range(input: &mut impl Input, range: Range<u64>) -> Result<Vec<u8>> {
     const STEP: u64 = 64 * 1024;
     let len = range.end.saturating_sub(range.start);
+    // A range longer than memory can address (on 32-bit targets).
     if usize::try_from(len).is_err() {
-        return Err(Error::TooLarge {
-            size: usize::MAX,
-            max: usize::MAX,
-        });
+        return Err(Error::LimitExceeded(crate::limits::Limit::Alloc));
     }
     let mut out = Vec::new();
     let mut at = range.start;
@@ -170,7 +170,7 @@ mod tests {
         #[cfg(target_pointer_width = "32")]
         assert!(matches!(
             read_range(&mut Slice(&[]), 0..u64::MAX),
-            Err(Error::TooLarge { .. })
+            Err(Error::LimitExceeded(crate::limits::Limit::Alloc))
         ));
         let data: Vec<u8> = (0..200_000u32).map(|i| i as u8).collect();
         assert_eq!(

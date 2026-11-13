@@ -118,6 +118,12 @@ pub struct SRational { pub num: i32, pub den: i32 }
 // to_f64() -> Option<f64> (None if den == 0), approx(f64, max_den) constructor, Display "1/250"
 ```
 
+Implemented in M3 so far: JPEG XL reading and writing (`Encoding::Brotli`,
+`DiagnosticKind::InvalidExifOffset`), TIFF streaming in `read_from` and
+`write_stream`, `Limits::max_metadata` with `Limit::Metadata`,
+`WriteOptions::limits`, `tiff::Header::is_known`. `tiff::Reader::bytes` and
+`RawEntry::data` return `Cow<[u8]>`.
+
 Implemented in M2 (PR 4): `Exif::set` with `IntoValue` and validation,
 `Exif::set_date_time_original` / `_digitized` / `set_date_time`,
 `EncodedText::new`, `Exif::write_stream`, `container::xmp` and

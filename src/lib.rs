@@ -7,15 +7,12 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-mod datetime;
 mod diagnostic;
 mod error;
-mod gps;
 mod limits;
 mod model;
 mod read;
-mod set;
-mod text;
+mod typed;
 mod value;
 mod write;
 
@@ -28,15 +25,15 @@ pub mod tiff;
 pub mod prelude;
 
 pub use crate::container::Format;
-pub use crate::datetime::{DateTime, Offset, SubSec};
 pub use crate::diagnostic::{Diagnostic, DiagnosticKind, Diagnostics, Severity};
 pub use crate::error::{Error, Result};
-pub use crate::gps::{Altitude, AltitudeDatum, Gps};
 pub use crate::ifd::IfdKind;
 pub use crate::limits::{Limit, Limits};
 pub use crate::model::{Entry, Exif, Ifd, ReadOptions};
-pub use crate::set::IntoValue;
 pub use crate::tag::{Namespace, Tag};
-pub use crate::text::{Copyright, EncodedText, TextEncoding};
+pub use crate::typed::datetime::{DateTime, Offset, SubSec};
+pub use crate::typed::gps::{Altitude, AltitudeDatum, Gps};
+pub use crate::typed::set::IntoValue;
+pub use crate::typed::text::{Copyright, EncodedText, TextEncoding};
 pub use crate::value::{FromValue, Rational, SRational, Value, ValueError};
 pub use crate::write::{MakerNotePolicy, WriteOptions, remove_exif};

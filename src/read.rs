@@ -30,6 +30,21 @@ impl Exif {
         let mut diagnostics = Diagnostics::default();
         let located = container::locate_in(&mut Slice(data), &mut diagnostics)?;
         let range = located.exif.clone().ok_or(Error::NoExif)?;
+        // A compressed JPEG XL block is decoded from the file's range, as
+        // `read_from` does, so both report the same (file) offsets.
+        #[cfg(feature = "jxl-brob")]
+        if located.encoding == container::Encoding::Brotli {
+            let limit = options.limits.metadata_budget(data.len());
+            let tiff = container::decode_brob(&mut Slice(data), range, limit)?;
+            return finish(
+                Cow::Owned(tiff),
+                container::Encoding::Raw,
+                None,
+                data.len(),
+                options,
+                diagnostics,
+            );
+        }
         let start = usize::try_from(range.start).unwrap_or(usize::MAX);
         let end = usize::try_from(range.end)
             .unwrap_or(usize::MAX)
@@ -102,7 +117,7 @@ impl Exif {
         #[cfg(feature = "jxl-brob")]
         if located.encoding == container::Encoding::Brotli {
             let limit = options.limits.metadata_budget(file_len);
-            let tiff = container::decode_brob_in(&mut stream, range, limit)?;
+            let tiff = container::decode_brob(&mut stream, range, limit)?;
             return finish(
                 Cow::Owned(tiff),
                 container::Encoding::Raw,
@@ -155,19 +170,25 @@ fn finish(
     Ok((exif, diagnostics))
 }
 
+// The tests build JPEG files, and JPEG XL files read as streams.
 #[cfg(test)]
+#[cfg(any(feature = "jpeg", all(feature = "jxl", feature = "std")))]
 mod tests {
     use alloc::vec::Vec;
 
     use super::*;
+    #[cfg(feature = "jpeg")]
     use crate::diagnostic::DiagnosticKind;
+    #[cfg(all(feature = "jpeg", feature = "png", feature = "webp", feature = "tiff"))]
     use crate::tag::Tag;
 
     /// A TIFF block with IFD0 = { Orientation = 6 }.
+    #[cfg(feature = "jpeg")]
     const TIFF: &[u8] = &[
         b'I', b'I', 42, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0,
     ];
 
+    #[cfg(feature = "jpeg")]
     fn jpeg_with(app1: &[u8]) -> Vec<u8> {
         let mut out = alloc::vec![0xFF, 0xD8, 0xFF, 0xE1];
         out.extend_from_slice(&u16::try_from(app1.len() + 2).unwrap().to_be_bytes());
@@ -177,6 +198,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(all(feature = "jpeg", feature = "png", feature = "webp", feature = "tiff"))]
     fn reads_every_container() {
         let mut app1 = b"Exif\0\0".to_vec();
         app1.extend_from_slice(TIFF);
@@ -201,6 +223,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jpeg")]
     fn no_exif_and_unknown_format() {
         let jfif = [
             0xFF, 0xD8, 0xFF, 0xE0, 0, 4, 0, 0, 0xFF, 0xDA, 0, 2, 0xFF, 0xD9,
@@ -214,6 +237,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jpeg")]
     fn ifd_offsets_are_file_relative() {
         // Replace Orientation with a Make (ASCII) whose 100 bytes would sit
         // at TIFF offset 10_000, far out of bounds.
@@ -235,6 +259,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jpeg")]
     fn container_diagnostics_reach_strict_mode() {
         // APP1 declares more bytes than the file has.
         let mut app1 = b"Exif\0\0".to_vec();
@@ -249,7 +274,7 @@ mod tests {
 
     /// A JPEG XL container whose Exif is a `brob` box: `brotli -q 11` of a
     /// zero offset and an empty little-endian TIFF block.
-    #[cfg(feature = "jxl")]
+    #[cfg(all(feature = "jxl", feature = "std"))]
     fn jxl_with_brob() -> Vec<u8> {
         let mut out = b"\0\0\0\x0CJXL \r\n\x87\n\0\0\0\x14ftypjxl \0\0\0\0jxl ".to_vec();
         let compressed: &[u8] = &[
@@ -283,6 +308,26 @@ mod tests {
             Exif::read_from_with(std::io::Cursor::new(&data), &tight),
             Err(Error::LimitExceeded(_))
         ));
+    }
+
+    #[test]
+    #[cfg(all(feature = "jxl-brob", feature = "std"))]
+    fn corrupt_brotli_errors_agree_on_both_paths() {
+        use alloc::string::ToString;
+
+        // Found by fuzzing: both paths must report the same file offset.
+        let mut data = jxl_with_brob();
+        let at = data.windows(8).position(|w| w == b"brobExif").unwrap() + 8;
+        data[at..at + 4].copy_from_slice(b"junk");
+        let in_memory = Exif::read(&data).unwrap_err().to_string();
+        let streamed = Exif::read_from(std::io::Cursor::new(&data))
+            .unwrap_err()
+            .to_string();
+        assert_eq!(in_memory, streamed);
+        assert!(
+            in_memory.contains(&alloc::format!("offset {at}")),
+            "{in_memory}"
+        );
     }
 
     #[test]

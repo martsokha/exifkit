@@ -220,7 +220,7 @@ fn render_enums(table: &Table) -> String {
     line(w, "");
     line(w, "use core::fmt;");
     line(w, "");
-    line(w, "use crate::set::IntoValue;");
+    line(w, "use crate::typed::set::IntoValue;");
     line(w, "use crate::tag::Tag;");
     line(w, "use crate::value::{FromValue, Value, ValueError};");
     for e in &table.enums {
